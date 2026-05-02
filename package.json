@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@wppconnect-team/wppconnect": "^2.0.0",
+    "express": "^5.2.1"
+  }
+}
