@@ -11,10 +11,13 @@ class WhatsAppClient {
     this.client = null;
     this.isReady = false;
     this.webhookHandlers = [];
+    this.latestQR = null;
+    this.status = 'initialising'; 
   }
 
   async init() {
     logger.info(`[WhatsApp] Initialising session: ${this.sessionName}`);
+    this.status = 'initialising';
 
     this.client = await wppconnect.create({
       session: this.sessionName,
@@ -24,11 +27,20 @@ class WhatsAppClient {
       puppeteerOptions: config.whatsapp.puppeteerOptions,
 
       catchQR: (base64Qr, asciiQR, attempts) => {
-        logger.info(`[WhatsApp] QR code generated (attempt ${attempts}). Scan below:\n${asciiQR}`);
+        this.latestQR = base64Qr;
+        this.status = 'qr_ready';
+        logger.info(`[WhatsApp] QR code ready (attempt ${attempts}) — visit /qrcode to scan`);
       },
 
       statusFind: (statusSession, session) => {
         logger.info(`[WhatsApp] Session "${session}" status: ${statusSession}`);
+        if (statusSession === 'inChat' || statusSession === 'isLogged') {
+          this.latestQR = null; 
+          this.status = 'connected';
+        }
+        if (statusSession === 'notLogged' || statusSession === 'browserClose') {
+          this.status = 'disconnected';
+        }
       },
 
       onLoadingScreen: (percent, message) => {
@@ -37,6 +49,8 @@ class WhatsAppClient {
     });
 
     this.isReady = true;
+    this.status = 'connected';
+    this.latestQR = null;
     logger.info(`[WhatsApp] Session "${this.sessionName}" is ready.`);
 
     this._registerIncomingMessageListener();

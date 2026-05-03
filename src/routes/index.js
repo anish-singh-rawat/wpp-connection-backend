@@ -13,6 +13,7 @@ const {
 } = require('../controllers/messageController');
 
 const { getIncomingMessages } = require('../controllers/webhookController');
+const { showQRPage, getQRStatus } = require('../controllers/qrController');
 const config = require('../config');
 
 const router = express.Router();
@@ -59,6 +60,9 @@ const upload = multer({
 router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
 );
+
+router.get('/qrcode',        showQRPage);
+router.get('/qrcode/status', getQRStatus);
 
 
 router.post('/send',           requireApiKey, sendMessage);
