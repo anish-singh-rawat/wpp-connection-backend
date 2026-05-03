@@ -1,4 +1,5 @@
 'use strict';
+require('dotenv').config();
 
 const express = require('express');
 const config = require('./config');
@@ -42,12 +43,6 @@ app.use((err, _req, res, _next) => {
 async function bootstrap() {
   try {
     logger.info(`[Server] Environment: ${config.server.env}`);
-    logger.info('[Server] Starting WhatsApp session...');
-
-    const session = getSession();
-    await session.init();
-
-    registerIncomingListener();
 
     const server = app.listen(config.server.port, '0.0.0.0', () => {
       logger.info(`[Server] Listening on 0.0.0.0:${config.server.port}`);
@@ -55,6 +50,12 @@ async function bootstrap() {
 
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
+
+    logger.info('[Server] Starting WhatsApp session...');
+    const session = getSession();
+    await session.init();
+
+    registerIncomingListener();
   } catch (err) {
     logger.error(`[Server] Bootstrap failed: ${err.message}`);
     process.exit(1);

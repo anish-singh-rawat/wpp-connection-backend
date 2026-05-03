@@ -1,8 +1,7 @@
 'use strict';
-
+require('dotenv').config();
 const { createLogger, format, transports } = require('winston');
 const path = require('path');
-
 const { combine, timestamp, printf, colorize, errors } = format;
 
 const logFormat = printf(({ level, message, timestamp: ts, stack }) => {
