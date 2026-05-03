@@ -21,11 +21,13 @@ const config = {
 
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
-    sessionPath: process.env.SESSION_PATH || "/root/wppconnect.io/sessions",
+    sessionPath: process.env.SESSION_PATH || '/root/wppconnect.io/sessions',
     headless: true,
     autoClose: 0,
-    useChrome: true,
+    useChrome: false,          
+    logQR: false,
     puppeteerOptions: {
+      executablePath: process.env.CHROMIUM_PATH || undefined, 
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -40,9 +42,9 @@ const config = {
         '--disable-sync',
         '--disable-translate',
         '--hide-scrollbars',
-        '--metrics-recording-only',
         '--mute-audio',
         '--safebrowsing-disable-auto-update',
+        '--window-size=1280,720',
       ],
     },
   },
