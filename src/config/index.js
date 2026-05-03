@@ -11,7 +11,7 @@ if (process.env.NODE_ENV === 'production') {
 
 const config = {
   server: {
-    port: parseInt(process.env.PORT, 10) || 3000,
+    port: parseInt(process.env.PORT, 10) || 8086,
     env: process.env.NODE_ENV || 'development',
   },
 
@@ -21,9 +21,10 @@ const config = {
 
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
-    sessionPath: process.env.SESSION_PATH || './sessions',
+    sessionPath: process.env.SESSION_PATH || "/root/wppconnect.io/sessions",
     headless: true,
-    useChrome: false,
+    autoClose: 0,
+    useChrome: true,
     puppeteerOptions: {
       args: [
         '--no-sandbox',
@@ -32,7 +33,6 @@ const config = {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process',
         '--disable-gpu',
         '--disable-extensions',
         '--disable-background-networking',
@@ -42,7 +42,6 @@ const config = {
         '--hide-scrollbars',
         '--metrics-recording-only',
         '--mute-audio',
-        '--no-first-run',
         '--safebrowsing-disable-auto-update',
       ],
     },
