@@ -36,13 +36,16 @@ function qrEventStream(req, res) {
   res.setHeader('Content-Type',  'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection',    'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); 
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   const session = getSession();
+
+  // Send current state immediately on connect
   if (session.isReady) {
     res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
-  } else if (session.latestQR) {
+  } else if (session.latestQR && session.status === 'qr_ready') {
+    // QR available and session still alive — show it
     res.write(`data: ${JSON.stringify({ type: 'qr', qr: session.latestQR })}\n\n`);
   } else {
     res.write(`data: ${JSON.stringify({ type: 'waiting', status: session.status })}\n\n`);

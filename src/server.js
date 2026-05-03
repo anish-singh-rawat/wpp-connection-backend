@@ -77,11 +77,16 @@ function startWhatsAppWithRetry(attempt = 1) {
     })
     .catch((err) => {
       logger.error(`[Server] WhatsApp init failed (attempt #${attempt}): ${err.message}`);
-      logger.info('[Server] Retrying in 15 seconds...');
-      session.client  = null;
-      session.isReady = false;
-      session.status  = 'retrying';
-      setTimeout(() => startWhatsAppWithRetry(attempt + 1), 15000);
+      session.client   = null;
+      session.isReady  = false;
+      session.latestQR = null;
+      session.status   = 'retrying';
+      try {
+        require('./controllers/qrController').notifyStatus('retrying');
+      } catch (_) {}
+      const delay = Math.min(15000 * attempt, 60000); 
+      logger.info(`[Server] Retrying in ${delay / 1000}s...`);
+      setTimeout(() => startWhatsAppWithRetry(attempt + 1), delay);
     });
 }
 
