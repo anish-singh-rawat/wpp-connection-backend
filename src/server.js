@@ -44,6 +44,7 @@ async function bootstrap() {
   try {
     logger.info(`[Server] Environment: ${config.server.env}`);
 
+    // Start HTTP server immediately
     const server = app.listen(config.server.port, '0.0.0.0', () => {
       logger.info(`[Server] Listening on 0.0.0.0:${config.server.port}`);
     });
@@ -51,11 +52,21 @@ async function bootstrap() {
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
 
-    logger.info('[Server] Starting WhatsApp session...');
+    // Init WhatsApp in background — do NOT await here.
+    // wppconnect.create() only resolves after QR is scanned,
+    // so awaiting it would block catchQR from pushing to SSE clients.
+    logger.info('[Server] Starting WhatsApp session in background...');
     const session = getSession();
-    await session.init();
 
-    registerIncomingListener();
+    session.init()
+      .then(() => {
+        registerIncomingListener();
+        logger.info('[Server] WhatsApp session fully ready.');
+      })
+      .catch((err) => {
+        logger.error(`[Server] WhatsApp init failed: ${err.message}`);
+      });
+
   } catch (err) {
     logger.error(`[Server] Bootstrap failed: ${err.message}`);
     process.exit(1);

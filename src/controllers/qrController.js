@@ -19,6 +19,13 @@ function notifyConnected() {
   }
 }
 
+function notifyStatus(status) {
+  const data = JSON.stringify({ type: 'waiting', status });
+  for (const res of sseClients) {
+    try { res.write(`data: ${data}\n\n`); } catch (_) {}
+  }
+}
+
 function showQRPage(_req, res) {
   const session = getSession();
   res.setHeader('Content-Type', 'text/html');
@@ -254,4 +261,4 @@ function waitingHtml(status) {
   `;
 }
 
-module.exports = { showQRPage, qrEventStream, getQRStatus, notifyQRUpdate, notifyConnected };
+module.exports = { showQRPage, qrEventStream, getQRStatus, notifyQRUpdate, notifyConnected, notifyStatus };
