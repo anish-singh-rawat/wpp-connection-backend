@@ -13,7 +13,7 @@ const {
 } = require('../controllers/messageController');
 
 const { getIncomingMessages } = require('../controllers/webhookController');
-const { showQRPage, getQRStatus } = require('../controllers/qrController');
+const { showQRPage, qrEventStream, getQRStatus } = require('../controllers/qrController');
 const config = require('../config');
 
 const router = express.Router();
@@ -62,6 +62,7 @@ router.get('/health', (_req, res) =>
 );
 
 router.get('/qrcode',        showQRPage);
+router.get('/qrcode/events', qrEventStream);
 router.get('/qrcode/status', getQRStatus);
 
 

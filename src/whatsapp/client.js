@@ -4,6 +4,10 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 const config = require('../config');
 const logger = require('../utils/logger');
 
+function getNotifiers() {
+  return require('../controllers/qrController');
+}
+
 
 class WhatsAppClient {
   constructor(sessionName) {
@@ -26,17 +30,19 @@ class WhatsAppClient {
       useChrome: config.whatsapp.useChrome,
       puppeteerOptions: config.whatsapp.puppeteerOptions,
 
-      catchQR: (base64Qr, asciiQR, attempts) => {
+      catchQR: (base64Qr, _asciiQR, attempts) => {
         this.latestQR = base64Qr;
         this.status = 'qr_ready';
         logger.info(`[WhatsApp] QR code ready (attempt ${attempts}) — visit /qrcode to scan`);
+        try { getNotifiers().notifyQRUpdate(base64Qr); } catch (_) {}
       },
 
       statusFind: (statusSession, session) => {
         logger.info(`[WhatsApp] Session "${session}" status: ${statusSession}`);
         if (statusSession === 'inChat' || statusSession === 'isLogged') {
-          this.latestQR = null; 
+          this.latestQR = null;
           this.status = 'connected';
+          try { getNotifiers().notifyConnected(); } catch (_) {}
         }
         if (statusSession === 'notLogged' || statusSession === 'browserClose') {
           this.status = 'disconnected';
