@@ -51,26 +51,38 @@ async function bootstrap() {
 
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
-
-    // Init WhatsApp in background — do NOT await here.
-    // wppconnect.create() only resolves after QR is scanned,
-    // so awaiting it would block catchQR from pushing to SSE clients.
+    
     logger.info('[Server] Starting WhatsApp session in background...');
-    const session = getSession();
-
-    session.init()
-      .then(() => {
-        registerIncomingListener();
-        logger.info('[Server] WhatsApp session fully ready.');
-      })
-      .catch((err) => {
-        logger.error(`[Server] WhatsApp init failed: ${err.message}`);
-      });
+    startWhatsAppWithRetry();
 
   } catch (err) {
     logger.error(`[Server] Bootstrap failed: ${err.message}`);
     process.exit(1);
   }
+}
+
+function startWhatsAppWithRetry(attempt = 1) {
+  logger.info(`[Server] WhatsApp init attempt #${attempt}...`);
+
+  const session = getSession();
+  session.isReady  = false;
+  session.status   = 'launching';
+  session.latestQR = null;
+  session.client   = null;
+
+  session.init()
+    .then(() => {
+      registerIncomingListener();
+      logger.info('[Server] WhatsApp session fully ready.');
+    })
+    .catch((err) => {
+      logger.error(`[Server] WhatsApp init failed (attempt #${attempt}): ${err.message}`);
+      logger.info('[Server] Retrying in 15 seconds...');
+      session.client  = null;
+      session.isReady = false;
+      session.status  = 'retrying';
+      setTimeout(() => startWhatsAppWithRetry(attempt + 1), 15000);
+    });
 }
 
 

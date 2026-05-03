@@ -195,10 +195,14 @@ function buildPage(session) {
   }
 
   function waitingHtml(status) {
+    const isRetrying = status && status.includes('retrying');
+    const msg = isRetrying
+      ? 'Previous attempt timed out. Retrying automatically…'
+      : 'Launching browser. QR code will appear here automatically.';
     return \`
       <div class="spinner"></div>
-      <h2>Starting session…</h2>
-      <p>Launching browser. QR code will appear here automatically.</p>
+      <h2>\${isRetrying ? 'Retrying…' : 'Starting session…'}</h2>
+      <p>\${msg}</p>
       <p class="hint"><span id="status-dot"></span>Status: \${status || 'initialising'}</p>
     \`;
   }
