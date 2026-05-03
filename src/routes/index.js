@@ -17,6 +17,7 @@ const config = require('../config');
 
 const router = express.Router();
 
+
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
@@ -26,6 +27,21 @@ const limiter = rateLimit({
 });
 
 router.use(limiter);
+
+
+function requireApiKey(req, res, next) {
+  if (!config.auth.apiKey) return next();
+
+  const key =
+    req.headers['x-api-key'] ||
+    req.query.api_key;
+
+  if (!key || key !== config.auth.apiKey) {
+    return res.status(401).json({ success: false, error: 'Unauthorized. Invalid or missing API key.' });
+  }
+  next();
+}
+
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -40,17 +56,18 @@ const upload = multer({
 });
 
 
-router.get('/health', (_req, res) => res.json({ status: 'ok' }));
+router.get('/health', (_req, res) =>
+  res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
+);
 
 
-router.post('/send', sendMessage);
-router.post('/bulk-send', bulkSendMessage);
-router.post('/bulk-send/csv', upload.single('file'), bulkSendCsv);
+router.post('/send',           requireApiKey, sendMessage);
+router.post('/bulk-send',      requireApiKey, bulkSendMessage);
+router.post('/bulk-send/csv',  requireApiKey, upload.single('file'), bulkSendCsv);
 
+router.get('/queue',           requireApiKey, getQueue);
+router.get('/queue/:jobId',    requireApiKey, getQueueJob);
 
-router.get('/queue', getQueue);
-router.get('/queue/:jobId', getQueueJob);
-
-router.get('/webhook/messages', getIncomingMessages);
+router.get('/webhook/messages', requireApiKey, getIncomingMessages);
 
 module.exports = router;

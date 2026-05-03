@@ -1,0 +1,465 @@
+================================================================================
+  WhatsApp Messaging API — PRODUCTION DEPLOYMENT GUIDE
+================================================================================
+
+REQUIREMENTS
+------------
+  - Ubuntu 20.04 / 22.04 VPS (DigitalOcean, AWS EC2, Hetzner, etc.)
+  - Minimum: 2 vCPU, 2 GB RAM (Chromium/Puppeteer is memory-heavy)
+  - Node.js 18+
+  - A domain name (optional but recommended for HTTPS)
+
+
+================================================================================
+STEP 1 — CONNECT TO YOUR SERVER
+================================================================================
+
+  ssh ubuntu@YOUR_SERVER_IP
+
+
+================================================================================
+STEP 2 — INSTALL SYSTEM DEPENDENCIES
+================================================================================
+
+  sudo apt update && sudo apt upgrade -y
+
+  # Install Node.js 20 (LTS)
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt install -y nodejs
+
+  # Verify
+  node -v    # should print v20.x.x
+  npm -v
+
+  # Install Chromium dependencies (required by Puppeteer/WPPConnect)
+  sudo apt install -y \
+    chromium-browser \
+    ca-certificates \
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libc6 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libexpat1 \
+    libfontconfig1 \
+    libgbm1 \
+    libgcc1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libstdc++6 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    lsb-release \
+    wget \
+    xdg-utils
+
+  # Install PM2 globally (process manager)
+  sudo npm install -g pm2
+
+  # Install Nginx
+  sudo apt install -y nginx
+
+
+================================================================================
+STEP 3 — UPLOAD YOUR PROJECT
+================================================================================
+
+  Option A — Git (recommended)
+  ─────────────────────────────
+    On your server:
+      cd /home/ubuntu
+      git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git whatsapp-api
+      cd whatsapp-api
+
+  Option B — SCP from your local machine
+  ────────────────────────────────────────
+    On your LOCAL machine (run from project root):
+      scp -r . ubuntu@YOUR_SERVER_IP:/home/ubuntu/whatsapp-api
+
+    Then on server:
+      cd /home/ubuntu/whatsapp-api
+
+
+================================================================================
+STEP 4 — INSTALL NODE DEPENDENCIES
+================================================================================
+
+  cd /home/ubuntu/whatsapp-api
+  npm install --omit=dev
+
+
+================================================================================
+STEP 5 — CREATE YOUR .env FILE
+================================================================================
+
+  cp .env.example .env
+  nano .env
+
+  Fill in these values:
+
+    NODE_ENV=production
+    PORT=3000
+
+    # Generate a strong API key:
+    # Run this command and copy the output:
+    #   openssl rand -hex 32
+    API_KEY=PASTE_YOUR_GENERATED_KEY_HERE
+
+    WA_SESSION=default-session
+    SESSION_PATH=/home/ubuntu/whatsapp-api/sessions
+
+  Save and exit: Ctrl+X → Y → Enter
+
+  Secure the file:
+    chmod 600 .env
+
+
+================================================================================
+STEP 6 — CREATE REQUIRED DIRECTORIES
+================================================================================
+
+  mkdir -p /home/ubuntu/whatsapp-api/sessions
+  mkdir -p /home/ubuntu/whatsapp-api/logs
+
+
+================================================================================
+STEP 7 — FIRST RUN (SCAN QR CODE)
+================================================================================
+
+  The FIRST time you run the app, you MUST scan a QR code to link your
+  WhatsApp account. After that, the session is saved and auto-restored.
+
+  Run the app directly (NOT via PM2) so you can see the QR in the terminal:
+
+    cd /home/ubuntu/whatsapp-api
+    node src/server.js
+
+  Watch the terminal. When you see:
+    [WhatsApp] QR code generated (attempt 1). Scan below:
+    ██████████████...
+
+  Open WhatsApp on your phone:
+    → Linked Devices → Link a Device → Scan the QR code
+
+  Once you see:
+    [WhatsApp] Session "default-session" is ready.
+    [Server] Listening on 0.0.0.0:3000
+
+  Press Ctrl+C to stop. The session token is now saved in ./sessions/
+  You will NOT need to scan again unless you log out.
+
+
+================================================================================
+STEP 8 — START WITH PM2 (PRODUCTION)
+================================================================================
+
+  # Load .env and start with PM2
+  cd /home/ubuntu/whatsapp-api
+
+  # Start the app
+  pm2 start ecosystem.config.js --env production
+
+  # Save PM2 process list (survives server reboots)
+  pm2 save
+
+  # Enable PM2 to start on system boot
+  pm2 startup
+  # Copy and run the command it prints (starts with "sudo env PATH=...")
+
+  # Useful PM2 commands:
+  pm2 status                    # see running processes
+  pm2 logs whatsapp-api         # live logs
+  pm2 logs whatsapp-api --lines 100   # last 100 lines
+  pm2 restart whatsapp-api      # restart app
+  pm2 stop whatsapp-api         # stop app
+  pm2 delete whatsapp-api       # remove from PM2
+
+
+================================================================================
+STEP 9 — CONFIGURE NGINX REVERSE PROXY
+================================================================================
+
+  # Copy the nginx config
+  sudo cp /home/ubuntu/whatsapp-api/nginx/whatsapp-api.conf \
+          /etc/nginx/sites-available/whatsapp-api
+
+  # Edit it — replace "your-domain.com" with your actual domain or server IP
+  sudo nano /etc/nginx/sites-available/whatsapp-api
+
+  # Enable the site
+  sudo ln -s /etc/nginx/sites-available/whatsapp-api \
+             /etc/nginx/sites-enabled/whatsapp-api
+
+  # Remove default nginx site
+  sudo rm -f /etc/nginx/sites-enabled/default
+
+  # Test config
+  sudo nginx -t
+
+  # Reload nginx
+  sudo systemctl reload nginx
+
+  # Enable nginx on boot
+  sudo systemctl enable nginx
+
+
+================================================================================
+STEP 10 — (OPTIONAL) FREE SSL WITH CERTBOT
+================================================================================
+
+  Only do this if you have a domain pointing to your server IP.
+
+  sudo apt install -y certbot python3-certbot-nginx
+  sudo certbot --nginx -d your-domain.com
+
+  Follow the prompts. Certbot auto-renews every 90 days.
+
+  After SSL is set up, uncomment the HTTPS block in nginx/whatsapp-api.conf
+  and reload nginx.
+
+
+================================================================================
+STEP 11 — OPEN FIREWALL PORTS
+================================================================================
+
+  sudo ufw allow OpenSSH
+  sudo ufw allow 'Nginx Full'   # opens ports 80 and 443
+  sudo ufw enable
+  sudo ufw status
+
+
+================================================================================
+API USAGE (POSTMAN / CURL)
+================================================================================
+
+  Base URL:
+    http://YOUR_SERVER_IP:3000        (direct, no nginx)
+    http://your-domain.com            (via nginx on port 80)
+    https://your-domain.com           (via nginx + SSL)
+
+  Required Header on all protected endpoints:
+    x-api-key: YOUR_API_KEY_FROM_ENV
+
+  ── Health Check (no auth required) ──────────────────────────────────────────
+
+    GET /health
+
+    curl https://your-domain.com/health
+
+
+  ── Send Single Message ───────────────────────────────────────────────────────
+
+    POST /send
+    Headers:
+      Content-Type: application/json
+      x-api-key: YOUR_API_KEY
+
+    Body:
+    {
+      "number": "919800000000",
+      "message": "Hello from production!"
+    }
+
+    curl -X POST https://your-domain.com/send \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{"number":"919800000000","message":"Hello!"}'
+
+
+  ── Bulk Send (JSON) ──────────────────────────────────────────────────────────
+
+    POST /bulk-send
+    Headers:
+      Content-Type: application/json
+      x-api-key: YOUR_API_KEY
+
+    Body:
+    {
+      "numbers": ["919800000000", "917000000000"],
+      "message": "Hello everyone!"
+    }
+
+    curl -X POST https://your-domain.com/bulk-send \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: YOUR_API_KEY" \
+      -d '{"numbers":["919800000000","917000000000"],"message":"Hello!"}'
+
+
+  ── Bulk Send (CSV Upload) ────────────────────────────────────────────────────
+
+    POST /bulk-send/csv
+    Headers:
+      x-api-key: YOUR_API_KEY
+    Body: form-data
+      file  = numbers.csv
+      message = Hello from CSV!
+
+    CSV format (any of these work):
+      number
+      919800000000
+      917000000000
+
+    curl -X POST https://your-domain.com/bulk-send/csv \
+      -H "x-api-key: YOUR_API_KEY" \
+      -F "file=@numbers.csv" \
+      -F "message=Hello from CSV!"
+
+
+  ── Queue Status ──────────────────────────────────────────────────────────────
+
+    GET /queue                        all jobs
+    GET /queue?status=pending         filter: pending | sent | failed
+    GET /queue/JOB_ID                 single job
+
+    curl https://your-domain.com/queue \
+      -H "x-api-key: YOUR_API_KEY"
+
+
+  ── Incoming Messages ─────────────────────────────────────────────────────────
+
+    GET /webhook/messages?limit=50
+
+    curl "https://your-domain.com/webhook/messages?limit=20" \
+      -H "x-api-key: YOUR_API_KEY"
+
+
+================================================================================
+POSTMAN SETUP
+================================================================================
+
+  1. Create a new Environment in Postman:
+       Variable: ApiBaseUrl   Value: https://your-domain.com
+       Variable: ApiKey       Value: YOUR_API_KEY_FROM_ENV
+
+  2. In each request, add Header:
+       x-api-key : {{ApiKey}}
+
+  3. Example URLs:
+       {{ApiBaseUrl}}/health
+       {{ApiBaseUrl}}/send
+       {{ApiBaseUrl}}/bulk-send
+       {{ApiBaseUrl}}/bulk-send/csv
+       {{ApiBaseUrl}}/queue
+       {{ApiBaseUrl}}/queue/{{jobId}}
+       {{ApiBaseUrl}}/webhook/messages
+
+
+================================================================================
+MONITORING & LOGS
+================================================================================
+
+  # Live application logs
+  pm2 logs whatsapp-api
+
+  # Log files on disk
+  tail -f /home/ubuntu/whatsapp-api/logs/app.log
+  tail -f /home/ubuntu/whatsapp-api/logs/error.log
+  tail -f /home/ubuntu/whatsapp-api/logs/pm2-out.log
+
+  # Nginx access logs
+  sudo tail -f /var/log/nginx/access.log
+  sudo tail -f /var/log/nginx/error.log
+
+  # PM2 monitoring dashboard
+  pm2 monit
+
+
+================================================================================
+RE-SCANNING QR CODE (if session expires)
+================================================================================
+
+  If WhatsApp logs out your session (e.g., you logged out from phone):
+
+  1. Stop the app:
+       pm2 stop whatsapp-api
+
+  2. Delete old session tokens:
+       rm -rf /home/ubuntu/whatsapp-api/sessions/*
+
+  3. Run directly to scan QR:
+       cd /home/ubuntu/whatsapp-api
+       node src/server.js
+
+  4. Scan QR from your phone, wait for "Session is ready"
+
+  5. Press Ctrl+C, then restart with PM2:
+       pm2 start ecosystem.config.js --env production
+       pm2 save
+
+
+================================================================================
+UPDATING THE APP
+================================================================================
+
+  cd /home/ubuntu/whatsapp-api
+  git pull origin main
+  npm install --omit=dev
+  pm2 restart whatsapp-api
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+  Problem: "error while loading shared libraries: libnss3.so"
+  Fix:     sudo apt install -y libnss3
+
+  Problem: "Running as root without --no-sandbox is not supported"
+  Fix:     Already handled in config. Make sure you're NOT running as root.
+           Create a non-root user: sudo adduser ubuntu
+
+  Problem: QR code not showing
+  Fix:     Check logs: pm2 logs whatsapp-api
+           Make sure port 3000 is not blocked: sudo ufw allow 3000
+
+  Problem: "WhatsApp client is not ready"
+  Fix:     Session not initialised. Re-scan QR (see RE-SCANNING section above)
+
+  Problem: Messages not sending
+  Fix:     Check queue: GET /queue?status=failed
+           Check logs: tail -f logs/error.log
+
+  Problem: 401 Unauthorized
+  Fix:     Add header: x-api-key: YOUR_API_KEY
+           Verify API_KEY in your .env file
+
+  Problem: Nginx 502 Bad Gateway
+  Fix:     App is not running. Check: pm2 status
+           Restart: pm2 restart whatsapp-api
+
+
+================================================================================
+SECURITY CHECKLIST
+================================================================================
+
+  [x] API_KEY set in .env (never commit .env to git)
+  [x] .env has chmod 600
+  [x] x-powered-by header disabled
+  [x] Rate limiting enabled (30 req/min per IP)
+  [x] Stack traces hidden in production responses
+  [x] Nginx hides direct Node.js port from internet
+  [x] UFW firewall enabled (only 22, 80, 443 open)
+  [ ] SSL certificate installed (do Step 10)
+  [ ] Regular backups of ./sessions/ folder
+
+
+================================================================================

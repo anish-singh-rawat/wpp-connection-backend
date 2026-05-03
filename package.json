@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "prod": "NODE_ENV=production node src/server.js"
   },
   "dependencies": {
     "@wppconnect-team/wppconnect": "^2.0.0",
@@ -18,5 +19,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
