@@ -1,18 +1,31 @@
 'use strict';
-const { WhatsAppClient, getSession } = require('../whatsapp/client');
+const { WhatsAppClient, removeSession, sessions } = require('../whatsapp/client');
 const { listDevices } = require('./deviceRegistry');
 const logger = require('../utils/logger');
 
 const retryTimers = new Map();
 
-function startSession(sessionName, attempt = 1) {
+function resetSession(sessionName) {
+  const fresh = new WhatsAppClient(sessionName);
+  sessions.set(sessionName, fresh);
+  return fresh;
+}
+
+async function startSession(sessionName, attempt = 1) {
   logger.info(`[SessionMgr] Starting "${sessionName}" (attempt #${attempt})...`);
 
-  const session = getSession(sessionName);
-  session.isReady  = false;
-  session.status   = 'launching';
-  session.latestQR = null;
-  session.client   = null;
+  if (attempt > 1 && sessions.has(sessionName)) {
+    try {
+      await sessions.get(sessionName).close();
+    } catch (_) {}
+  }
+
+  const session = resetSession(sessionName);
+  session.status = 'launching';
+
+  try {
+    require('../controllers/qrController').notifyStatusForSession(sessionName, 'launching');
+  } catch (_) {}
 
   session.init()
     .then(() => {
@@ -27,10 +40,14 @@ function startSession(sessionName, attempt = 1) {
     })
     .catch((err) => {
       logger.error(`[SessionMgr] "${sessionName}" init failed (attempt #${attempt}): ${err.message}`);
-      session.client   = null;
-      session.isReady  = false;
-      session.latestQR = null;
-      session.status   = 'retrying';
+
+      const current = sessions.get(sessionName);
+      if (current) {
+        current.client   = null;
+        current.isReady  = false;
+        current.latestQR = null;
+        current.status   = 'retrying';
+      }
 
       try {
         require('../controllers/qrController').notifyStatusForSession(sessionName, 'retrying');
@@ -64,10 +81,12 @@ async function stopSession(sessionName) {
     clearTimeout(retryTimers.get(sessionName));
     retryTimers.delete(sessionName);
   }
-  try {
-    const session = getSession(sessionName);
-    await session.close();
-  } catch (_) {}
+  if (sessions.has(sessionName)) {
+    try {
+      await sessions.get(sessionName).close();
+    } catch (_) {}
+    removeSession(sessionName);
+  }
 }
 
 

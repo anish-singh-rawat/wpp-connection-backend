@@ -1,8 +1,11 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { createDevice, getDevice, listDevices, deleteDevice, resolveSession } = require('../services/deviceRegistry');
 const { startNewSession, stopSession } = require('../services/sessionManager');
 const { getSession } = require('../whatsapp/client');
+const config = require('../config');
 const logger = require('../utils/logger');
 
 
@@ -73,6 +76,17 @@ async function deleteDeviceHandler(req, res) {
   }
 
   await stopSession(device.sessionName);
+
+  const sessionFolder = path.resolve(config.whatsapp.sessionPath, device.sessionName);
+  try {
+    if (fs.existsSync(sessionFolder)) {
+      fs.rmSync(sessionFolder, { recursive: true, force: true });
+      logger.info(`[Device] Removed session folder: ${sessionFolder}`);
+    }
+  } catch (err) {
+    logger.warn(`[Device] Could not remove session folder "${sessionFolder}": ${err.message}`);
+  }
+
   deleteDevice(token);
 
   logger.info(`[Device] Deleted: ${device.sessionName}`);

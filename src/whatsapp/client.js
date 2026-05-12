@@ -1,6 +1,7 @@
 'use strict';
 
 const path       = require('path');
+const fs         = require('fs');
 const wppconnect = require('@wppconnect-team/wppconnect');
 const config     = require('../config');
 const logger     = require('../utils/logger');
@@ -25,14 +26,32 @@ class WhatsAppClient {
     logger.info(`[WhatsApp:${this.sessionName}] Initialising... folder: ${this.sessionFolder}`);
     this.status = 'launching';
 
+    const userDataDir = path.join(this.sessionFolder, this.sessionName);
+
+    for (const lockFile of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+      try {
+        const lockPath = path.join(userDataDir, lockFile);
+        if (fs.existsSync(lockPath)) {
+          fs.rmSync(lockPath, { force: true });
+          logger.info(`[WhatsApp:${this.sessionName}] Removed stale lock: ${lockFile}`);
+        }
+      } catch (_) {}
+    }
+    
+    const puppeteerOptions = {
+      ...config.whatsapp.puppeteerOptions,
+      args: [...(config.whatsapp.puppeteerOptions.args || [])],
+      userDataDir,
+    };
+
     this.client = await wppconnect.create({
       session:          this.sessionName,
-      folderNameToken:  this.sessionFolder, 
+      folderNameToken:  this.sessionFolder,
       headless:         config.whatsapp.headless,
       autoClose:        config.whatsapp.autoClose,
       useChrome:        config.whatsapp.useChrome,
       logQR:            config.whatsapp.logQR,
-      puppeteerOptions: config.whatsapp.puppeteerOptions,
+      puppeteerOptions,
 
       catchQR: (base64Qr, _asciiQR, attempts) => {
         this.latestQR = base64Qr;
@@ -55,7 +74,12 @@ class WhatsAppClient {
           this.status = 'qr_pending';
         }
         if (statusSession === 'browserClose' || statusSession === 'desconnectedMobile') {
-          this.status = 'disconnected';
+          this.status  = 'disconnected';
+          this.isReady = false;
+          this.client  = null;
+          try {
+            require('../services/sessionManager').startSession(this.sessionName);
+          } catch (_) {}
         }
       },
 
@@ -100,7 +124,10 @@ class WhatsAppClient {
 
   async close() {
     if (this.client) {
-      await this.client.close();
+      try {
+        await this.client.close();
+      } catch (_) {}
+      this.client  = null;
       this.isReady = false;
       logger.info(`[WhatsApp:${this.sessionName}] Closed.`);
     }
@@ -123,4 +150,8 @@ function getSession(name) {
   return sessions.get(name);
 }
 
-module.exports = { WhatsAppClient, getSession, sessions };
+function removeSession(name) {
+  sessions.delete(name);
+}
+
+module.exports = { WhatsAppClient, getSession, removeSession, sessions };

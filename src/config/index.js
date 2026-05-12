@@ -21,7 +21,7 @@ const config = {
 
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
-    sessionPath: process.env.SESSION_PATH || '/root/wppconnect.io/sessions',
+    sessionPath: process.env.SESSION_PATH || './sessions',
     headless: true,
     autoClose: 0,
     useChrome: false,
@@ -33,11 +33,9 @@ const config = {
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', 
+        '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process',
         '--disable-gpu',
         '--disable-extensions',
         '--disable-background-networking',
