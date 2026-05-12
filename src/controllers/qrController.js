@@ -4,10 +4,7 @@ const { getSession } = require('../whatsapp/client');
 const { resolveSession } = require('../services/deviceRegistry');
 const logger = require('../utils/logger');
 
-// Map of sessionName → Set of SSE response objects
 const sseClients = new Map();
-
-// ─── SSE helpers ──────────────────────────────────────────────────────────────
 
 function getClients(sessionName) {
   if (!sseClients.has(sessionName)) sseClients.set(sessionName, new Set());
@@ -35,12 +32,10 @@ function notifyStatusForSession(sessionName, status) {
   }
 }
 
-// Legacy single-session aliases (kept for backward compat)
 function notifyQRUpdate(qr)      { /* no-op — use per-session */ }
 function notifyConnected()       { /* no-op — use per-session */ }
 function notifyStatus(status)    { /* no-op — use per-session */ }
 
-// ─── Middleware: resolve token → sessionName ──────────────────────────────────
 
 function resolveDevice(req, res, next) {
   const token = req.params.token;
@@ -52,7 +47,6 @@ function resolveDevice(req, res, next) {
   next();
 }
 
-// ─── GET /devices/:token/qrcode ───────────────────────────────────────────────
 
 function showQRPage(req, res) {
   const session = getSession(req.sessionName);
@@ -60,7 +54,6 @@ function showQRPage(req, res) {
   res.send(buildPage(req.params.token, session));
 }
 
-// ─── GET /devices/:token/qrcode/events ───────────────────────────────────────
 
 function qrEventStream(req, res) {
   const { sessionName } = req;
@@ -72,8 +65,6 @@ function qrEventStream(req, res) {
   res.flushHeaders();
 
   const session = getSession(sessionName);
-
-  // Send current state immediately
   if (session.isReady) {
     res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
   } else if (session.latestQR && session.status === 'qr_ready') {
@@ -94,8 +85,6 @@ function qrEventStream(req, res) {
   });
 }
 
-// ─── GET /devices/:token/qrcode/status ───────────────────────────────────────
-
 function getQRStatus(req, res) {
   const session = getSession(req.sessionName);
   return res.json({
@@ -106,8 +95,6 @@ function getQRStatus(req, res) {
     hasQR:     !!session.latestQR,
   });
 }
-
-// ─── HTML page builder ────────────────────────────────────────────────────────
 
 function buildPage(token, session) {
   let initialHtml;

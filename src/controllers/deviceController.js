@@ -5,14 +5,11 @@ const { startNewSession, stopSession } = require('../services/sessionManager');
 const { getSession } = require('../whatsapp/client');
 const logger = require('../utils/logger');
 
-// ─── POST /devices ────────────────────────────────────────────────────────────
-// Create a new device, get back a secret token
 
 function createDeviceHandler(req, res) {
   const { label } = req.body;
   const device = createDevice(label);
 
-  // Start the WhatsApp session immediately in background
   startNewSession(device.sessionName);
 
   logger.info(`[Device] Created: ${device.sessionName}`);
@@ -31,8 +28,6 @@ function createDeviceHandler(req, res) {
   });
 }
 
-// ─── GET /devices ─────────────────────────────────────────────────────────────
-// List all devices with their live status
 
 function listDevicesHandler(_req, res) {
   const devices = listDevices().map((d) => {
@@ -50,8 +45,6 @@ function listDevicesHandler(_req, res) {
 
   return res.json({ success: true, count: devices.length, devices });
 }
-
-// ─── GET /devices/:token ──────────────────────────────────────────────────────
 
 function getDeviceHandler(req, res) {
   const device = getDevice(req.params.token);
@@ -71,8 +64,6 @@ function getDeviceHandler(req, res) {
     },
   });
 }
-
-// ─── DELETE /devices/:token ───────────────────────────────────────────────────
 
 async function deleteDeviceHandler(req, res) {
   const { token } = req.params;

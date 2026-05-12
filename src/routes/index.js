@@ -31,8 +31,6 @@ const config = require('../config');
 
 const router = express.Router();
 
-// ─── Rate limiter ─────────────────────────────────────────────────────────────
-
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max:      config.rateLimit.max,
@@ -43,8 +41,6 @@ const limiter = rateLimit({
 
 router.use(limiter);
 
-// ─── Master API key auth (protects device management) ────────────────────────
-
 function requireApiKey(req, res, next) {
   if (!config.auth.apiKey) return next();
   const key = req.headers['x-api-key'] || req.query.api_key;
@@ -53,8 +49,6 @@ function requireApiKey(req, res, next) {
   }
   next();
 }
-
-// ─── CSV upload ───────────────────────────────────────────────────────────────
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -67,8 +61,6 @@ const upload = multer({
     }
   },
 });
-
-// ─── Health ───────────────────────────────────────────────────────────────────
 
 router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })

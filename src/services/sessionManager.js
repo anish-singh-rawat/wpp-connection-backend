@@ -1,25 +1,10 @@
 'use strict';
-
-/**
- * Session Manager
- * ───────────────
- * Manages lifecycle of all WhatsApp sessions.
- * Each device token maps to one WhatsAppClient instance.
- * Handles init, retry, and graceful shutdown for all sessions.
- */
-
 const { WhatsAppClient, getSession } = require('../whatsapp/client');
 const { listDevices } = require('./deviceRegistry');
 const logger = require('../utils/logger');
 
-// Track retry timers so we can cancel them on shutdown
 const retryTimers = new Map();
 
-/**
- * Start a single session with auto-retry on failure.
- * @param {string} sessionName
- * @param {number} attempt
- */
 function startSession(sessionName, attempt = 1) {
   logger.info(`[SessionMgr] Starting "${sessionName}" (attempt #${attempt})...`);
 
@@ -32,11 +17,9 @@ function startSession(sessionName, attempt = 1) {
   session.init()
     .then(() => {
       logger.info(`[SessionMgr] "${sessionName}" is ready.`);
-      // Register incoming message listener
       try {
         require('../controllers/webhookController').registerIncomingListener(sessionName);
       } catch (_) {}
-      // Cancel any pending retry timer
       if (retryTimers.has(sessionName)) {
         clearTimeout(retryTimers.get(sessionName));
         retryTimers.delete(sessionName);
@@ -49,7 +32,6 @@ function startSession(sessionName, attempt = 1) {
       session.latestQR = null;
       session.status   = 'retrying';
 
-      // Notify SSE clients for this session
       try {
         require('../controllers/qrController').notifyStatusForSession(sessionName, 'retrying');
       } catch (_) {}
@@ -61,9 +43,6 @@ function startSession(sessionName, attempt = 1) {
     });
 }
 
-/**
- * Boot all previously registered devices on server startup.
- */
 function bootAllDevices() {
   const devices = listDevices();
   if (devices.length === 0) {
@@ -76,18 +55,11 @@ function bootAllDevices() {
   }
 }
 
-/**
- * Start a newly registered device session.
- */
 function startNewSession(sessionName) {
   startSession(sessionName);
 }
 
-/**
- * Stop and remove a session.
- */
 async function stopSession(sessionName) {
-  // Cancel retry timer if pending
   if (retryTimers.has(sessionName)) {
     clearTimeout(retryTimers.get(sessionName));
     retryTimers.delete(sessionName);
@@ -98,9 +70,7 @@ async function stopSession(sessionName) {
   } catch (_) {}
 }
 
-/**
- * Gracefully shut down all sessions.
- */
+
 async function shutdownAll() {
   const { sessions } = require('../whatsapp/client');
   for (const [name, session] of sessions.entries()) {

@@ -4,7 +4,6 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-// Lazy-loaded to avoid circular dependency
 function getNotifiers() {
   return require('../controllers/qrController');
 }
@@ -111,7 +110,6 @@ class WhatsAppClient {
   }
 }
 
-// ─── Session registry ─────────────────────────────────────────────────────────
 
 const sessions = new Map();
 

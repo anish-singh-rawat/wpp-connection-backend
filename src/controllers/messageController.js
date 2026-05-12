@@ -5,11 +5,10 @@ const { parseCsvNumbers } = require('../utils/csvParser');
 const { isNonEmptyString, isNonEmptyArray } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
-// ─── POST /devices/:token/send ────────────────────────────────────────────────
 
 async function sendMessage(req, res) {
   const { number, message } = req.body;
-  const { sessionName } = req; // set by resolveDevice middleware
+  const { sessionName } = req;
 
   if (!isNonEmptyString(number)) {
     return res.status(400).json({ success: false, error: '"number" is required.' });
@@ -27,7 +26,6 @@ async function sendMessage(req, res) {
   }
 }
 
-// ─── POST /devices/:token/bulk-send ──────────────────────────────────────────
 
 async function bulkSendMessage(req, res) {
   const { numbers, message } = req.body;
@@ -56,7 +54,6 @@ async function bulkSendMessage(req, res) {
   });
 }
 
-// ─── POST /devices/:token/bulk-send/csv ──────────────────────────────────────
 
 async function bulkSendCsv(req, res) {
   if (!req.file) {
@@ -93,7 +90,6 @@ async function bulkSendCsv(req, res) {
   });
 }
 
-// ─── GET /devices/:token/queue ────────────────────────────────────────────────
 
 function getQueue(req, res) {
   const { sessionName } = req;
@@ -102,7 +98,6 @@ function getQueue(req, res) {
   return res.json({ success: true, session: sessionName, count: jobs.length, jobs });
 }
 
-// ─── GET /devices/:token/queue/:jobId ────────────────────────────────────────
 
 function getQueueJob(req, res) {
   const job = getJobById(req.params.jobId);

@@ -3,3 +3,4 @@ sessions/
 logs/
 .env
 *.log
+integrate.md

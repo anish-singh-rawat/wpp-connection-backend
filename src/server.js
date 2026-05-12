@@ -1,7 +1,11 @@
 'use strict';
-
 require('dotenv').config();
 
+const cors = require('cors');
+const helmet = require('helmet');
+const hpp = require('hpp');
+const compression = require('compression');
+const morgan = require('morgan');
 const express = require('express');
 const config  = require('./config');
 const logger  = require('./utils/logger');
@@ -9,6 +13,47 @@ const { bootAllDevices, shutdownAll } = require('./services/sessionManager');
 const routes  = require('./routes');
 
 const app = express();
+
+const allowedOrigins = [
+  "https://visualeye.digibysr.in",
+  "https://www.visualeye.digibysr.in",
+  "http://visualeye.digibysr.in",
+  "http://www.visualeye.digibysr.in",
+  "https://visualeyeye.netlify.app",
+  "https://www.visualeyeye.netlify.app",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://139.59.65.108",
+];
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+}));
+
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+app.use(compression()); 
+app.use(morgan('combined'));
+app.use(hpp()); 
+app.use(cookieParser())
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -33,7 +78,6 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ success: false, error: message });
 });
 
-// ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap() {
   try {
@@ -45,8 +89,6 @@ async function bootstrap() {
 
     server.keepAliveTimeout = 65000;
     server.headersTimeout   = 66000;
-
-    // Boot all previously registered devices in background
     bootAllDevices();
 
   } catch (err) {
@@ -55,7 +97,6 @@ async function bootstrap() {
   }
 }
 
-// ─── Graceful shutdown ────────────────────────────────────────────────────────
 
 async function shutdown(signal) {
   logger.info(`[Server] ${signal} received. Shutting down...`);
