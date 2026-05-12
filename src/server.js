@@ -7,6 +7,9 @@ const hpp = require('hpp');
 const compression = require('compression');
 const morgan = require('morgan');
 const express = require('express');
+const cookieParser = require('cookie-parser')
+
+
 const config  = require('./config');
 const logger  = require('./utils/logger');
 const { bootAllDevices, shutdownAll } = require('./services/sessionManager');
@@ -34,9 +37,12 @@ app.use(cors({
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  exposedHeaders: ['x-api-key'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
+
+app.options('*', cors());
 
 app.use(helmet({
   crossOriginResourcePolicy: false,

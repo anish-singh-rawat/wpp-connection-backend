@@ -1,8 +1,9 @@
 'use strict';
 
+const path       = require('path');
 const wppconnect = require('@wppconnect-team/wppconnect');
-const config = require('../config');
-const logger = require('../utils/logger');
+const config     = require('../config');
+const logger     = require('../utils/logger');
 
 function getNotifiers() {
   return require('../controllers/qrController');
@@ -16,15 +17,17 @@ class WhatsAppClient {
     this.webhookHandlers = [];
     this.latestQR        = null;
     this.status          = 'initialising';
+
+    this.sessionFolder = path.resolve(config.whatsapp.sessionPath, this.sessionName);
   }
 
   async init() {
-    logger.info(`[WhatsApp:${this.sessionName}] Initialising...`);
+    logger.info(`[WhatsApp:${this.sessionName}] Initialising... folder: ${this.sessionFolder}`);
     this.status = 'launching';
 
     this.client = await wppconnect.create({
       session:          this.sessionName,
-      folderNameToken:  config.whatsapp.sessionPath,
+      folderNameToken:  this.sessionFolder, 
       headless:         config.whatsapp.headless,
       autoClose:        config.whatsapp.autoClose,
       useChrome:        config.whatsapp.useChrome,
