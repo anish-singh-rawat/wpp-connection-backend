@@ -1,42 +1,48 @@
 'use strict';
 
 const { getSession } = require('../whatsapp/client');
-const config = require('../config');
 const logger = require('../utils/logger');
 
-// In-memory store for received messages (replace with DB in production)
-const incomingMessages = [];
+// Per-session incoming message store: sessionName → message[]
+const incomingMessages = new Map();
 const MAX_STORED = 200;
 
-function registerIncomingListener() {
-  const session = getSession();
+function getStore(sessionName) {
+  if (!incomingMessages.has(sessionName)) incomingMessages.set(sessionName, []);
+  return incomingMessages.get(sessionName);
+}
 
+/**
+ * Register incoming message listener for a specific session.
+ */
+function registerIncomingListener(sessionName) {
+  const session = getSession(sessionName);
   session.onMessage(async (msg) => {
-    const entry = {
-      from: msg.from,
-      body: msg.body,
-      type: msg.type,
-      timestamp: new Date(msg.timestamp * 1000),
+    const store = getStore(sessionName);
+    store.unshift({
+      from:       msg.from,
+      body:       msg.body,
+      type:       msg.type,
+      timestamp:  new Date(msg.timestamp * 1000),
       receivedAt: new Date(),
-    };
-
-    incomingMessages.unshift(entry);
-
-    if (incomingMessages.length > MAX_STORED) {
-      incomingMessages.length = MAX_STORED;
-    }
-
-    logger.info(`[Webhook] Incoming from ${msg.from}: ${msg.body}`);
+    });
+    if (store.length > MAX_STORED) store.length = MAX_STORED;
+    logger.info(`[Webhook:${sessionName}] Incoming from ${msg.from}`);
   });
 }
 
-
+/**
+ * GET /devices/:token/messages
+ */
 function getIncomingMessages(req, res) {
+  const { sessionName } = req;
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, MAX_STORED);
+  const store = getStore(sessionName);
   return res.json({
-    success: true,
-    count: incomingMessages.length,
-    messages: incomingMessages.slice(0, limit),
+    success:  true,
+    session:  sessionName,
+    count:    store.length,
+    messages: store.slice(0, limit),
   });
 }
 

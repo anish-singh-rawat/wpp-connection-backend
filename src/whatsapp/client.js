@@ -4,75 +4,72 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-// Lazy-loaded to avoid circular dependency (client ↔ qrController)
+// Lazy-loaded to avoid circular dependency
 function getNotifiers() {
   return require('../controllers/qrController');
 }
 
 class WhatsAppClient {
   constructor(sessionName) {
-    this.sessionName = sessionName || config.whatsapp.sessionName;
-    this.client      = null;
-    this.isReady     = false;
+    this.sessionName     = sessionName;
+    this.client          = null;
+    this.isReady         = false;
     this.webhookHandlers = [];
-    this.latestQR    = null;
-    this.status      = 'initialising';
+    this.latestQR        = null;
+    this.status          = 'initialising';
   }
 
   async init() {
-    logger.info(`[WhatsApp] Initialising session: ${this.sessionName}`);
+    logger.info(`[WhatsApp:${this.sessionName}] Initialising...`);
     this.status = 'launching';
 
     this.client = await wppconnect.create({
-      session:         this.sessionName,
-      folderNameToken: config.whatsapp.sessionPath,
-      headless:        config.whatsapp.headless,
-      useChrome:       config.whatsapp.useChrome,
+      session:          this.sessionName,
+      folderNameToken:  config.whatsapp.sessionPath,
+      headless:         config.whatsapp.headless,
+      autoClose:        config.whatsapp.autoClose,
+      useChrome:        config.whatsapp.useChrome,
+      logQR:            config.whatsapp.logQR,
       puppeteerOptions: config.whatsapp.puppeteerOptions,
 
-      // Fires when a new QR code is generated
       catchQR: (base64Qr, _asciiQR, attempts) => {
         this.latestQR = base64Qr;
         this.status   = 'qr_ready';
-        logger.info(`[WhatsApp] QR ready (attempt ${attempts}) — open /qrcode in browser`);
-        // Push instantly to all open SSE browser connections
-        try { getNotifiers().notifyQRUpdate(base64Qr); } catch (_) {}
+        logger.info(`[WhatsApp:${this.sessionName}] QR ready (attempt ${attempts})`);
+        try {
+          getNotifiers().notifyQRUpdateForSession(this.sessionName, base64Qr);
+        } catch (_) {}
       },
 
-      statusFind: (statusSession, sessionName) => {
-        logger.info(`[WhatsApp] Session "${sessionName}" status: ${statusSession}`);
+      statusFind: (statusSession) => {
+        logger.info(`[WhatsApp:${this.sessionName}] Status: ${statusSession}`);
 
         if (statusSession === 'inChat' || statusSession === 'isLogged') {
           this.latestQR = null;
           this.status   = 'connected';
-          try { getNotifiers().notifyConnected(); } catch (_) {}
+          try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
         }
-
         if (statusSession === 'notLogged') {
-          // Not logged in — QR will follow via catchQR
           this.status = 'qr_pending';
         }
-
         if (statusSession === 'browserClose' || statusSession === 'desconnectedMobile') {
           this.status = 'disconnected';
         }
       },
 
       onLoadingScreen: (percent, message) => {
-        logger.info(`[WhatsApp] Loading ${percent}% — ${message}`);
+        logger.info(`[WhatsApp:${this.sessionName}] Loading ${percent}% — ${message}`);
         this.status = `loading (${percent}%)`;
-        // Push loading status to SSE clients so browser shows progress
         try {
-          getNotifiers().notifyStatus(`loading (${percent}%)`);
+          getNotifiers().notifyStatusForSession(this.sessionName, `loading (${percent}%)`);
         } catch (_) {}
       },
     });
 
-    // wppconnect.create() resolves only after successful login
     this.isReady  = true;
     this.status   = 'connected';
     this.latestQR = null;
-    logger.info(`[WhatsApp] Session "${this.sessionName}" is ready.`);
+    logger.info(`[WhatsApp:${this.sessionName}] Ready.`);
 
     this._registerIncomingMessageListener();
     return this.client;
@@ -85,10 +82,10 @@ class WhatsAppClient {
   _registerIncomingMessageListener() {
     if (!this.client) return;
     this.client.onMessage(async (message) => {
-      logger.info(`[WhatsApp] Incoming from ${message.from}: ${message.body}`);
+      logger.info(`[WhatsApp:${this.sessionName}] Incoming from ${message.from}`);
       for (const handler of this.webhookHandlers) {
         try { await handler(message); } catch (err) {
-          logger.error(`[WhatsApp] Webhook handler error: ${err.message}`);
+          logger.error(`[WhatsApp:${this.sessionName}] Handler error: ${err.message}`);
         }
       }
     });
@@ -103,27 +100,26 @@ class WhatsAppClient {
     if (this.client) {
       await this.client.close();
       this.isReady = false;
-      logger.info(`[WhatsApp] Session "${this.sessionName}" closed.`);
+      logger.info(`[WhatsApp:${this.sessionName}] Closed.`);
     }
   }
 
   _assertReady() {
     if (!this.isReady || !this.client) {
-      throw new Error('WhatsApp client is not ready. Please scan the QR at /qrcode');
+      throw new Error(`Session "${this.sessionName}" is not ready. Scan QR at /devices/{token}/qrcode`);
     }
   }
 }
 
-// ─── Session registry (multi-session ready) ───────────────────────────────────
+// ─── Session registry ─────────────────────────────────────────────────────────
 
 const sessions = new Map();
 
 function getSession(name) {
-  const key = name || config.whatsapp.sessionName;
-  if (!sessions.has(key)) {
-    sessions.set(key, new WhatsAppClient(key));
+  if (!sessions.has(name)) {
+    sessions.set(name, new WhatsAppClient(name));
   }
-  return sessions.get(key);
+  return sessions.get(name);
 }
 
-module.exports = { WhatsAppClient, getSession };
+module.exports = { WhatsAppClient, getSession, sessions };

@@ -5,19 +5,21 @@ const { parseCsvNumbers } = require('../utils/csvParser');
 const { isNonEmptyString, isNonEmptyArray } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
+// ─── POST /devices/:token/send ────────────────────────────────────────────────
 
 async function sendMessage(req, res) {
-  const { number, message, session } = req.body;
+  const { number, message } = req.body;
+  const { sessionName } = req; // set by resolveDevice middleware
 
   if (!isNonEmptyString(number)) {
-    return res.status(400).json({ success: false, error: '"number" is required and must be a non-empty string.' });
+    return res.status(400).json({ success: false, error: '"number" is required.' });
   }
   if (!isNonEmptyString(message)) {
-    return res.status(400).json({ success: false, error: '"message" is required and must be a non-empty string.' });
+    return res.status(400).json({ success: false, error: '"message" is required.' });
   }
 
   try {
-    const result = await sendSingle(number.trim(), message.trim(), session);
+    const result = await sendSingle(number.trim(), message.trim(), sessionName);
     return res.json({ success: true, result });
   } catch (err) {
     logger.error(`[Controller] sendMessage error: ${err.message}`);
@@ -25,42 +27,44 @@ async function sendMessage(req, res) {
   }
 }
 
+// ─── POST /devices/:token/bulk-send ──────────────────────────────────────────
 
 async function bulkSendMessage(req, res) {
-  const { numbers, message, session } = req.body;
+  const { numbers, message } = req.body;
+  const { sessionName } = req;
 
   if (!isNonEmptyArray(numbers)) {
     return res.status(400).json({ success: false, error: '"numbers" must be a non-empty array.' });
   }
   if (!isNonEmptyString(message)) {
-    return res.status(400).json({ success: false, error: '"message" is required and must be a non-empty string.' });
+    return res.status(400).json({ success: false, error: '"message" is required.' });
   }
 
-  const sanitised = numbers
-    .map((n) => String(n).trim())
-    .filter((n) => n.length > 0);
-
+  const sanitised = numbers.map((n) => String(n).trim()).filter((n) => n.length > 0);
   if (sanitised.length === 0) {
     return res.status(400).json({ success: false, error: 'No valid numbers provided.' });
   }
 
-  const jobs = enqueueBulk(sanitised, message.trim(), session);
+  const jobs = enqueueBulk(sanitised, message.trim(), sessionName);
 
   return res.json({
-    success: true,
-    queued: jobs.filter((j) => j.status === 'queued').length,
+    success:    true,
+    session:    sessionName,
+    queued:     jobs.filter((j) => j.status === 'queued').length,
     duplicates: jobs.filter((j) => j.status === 'duplicate').length,
     jobs,
   });
 }
 
+// ─── POST /devices/:token/bulk-send/csv ──────────────────────────────────────
 
 async function bulkSendCsv(req, res) {
   if (!req.file) {
-    return res.status(400).json({ success: false, error: 'CSV file is required (field name: "file").' });
+    return res.status(400).json({ success: false, error: 'CSV file required (field: "file").' });
   }
 
-  const { message, session } = req.body;
+  const { message } = req.body;
+  const { sessionName } = req;
 
   if (!isNonEmptyString(message)) {
     return res.status(400).json({ success: false, error: '"message" is required.' });
@@ -70,7 +74,6 @@ async function bulkSendCsv(req, res) {
   try {
     numbers = await parseCsvNumbers(req.file.buffer);
   } catch (err) {
-    logger.error(`[Controller] CSV parse error: ${err.message}`);
     return res.status(400).json({ success: false, error: `CSV parse error: ${err.message}` });
   }
 
@@ -78,24 +81,28 @@ async function bulkSendCsv(req, res) {
     return res.status(400).json({ success: false, error: 'No numbers found in CSV.' });
   }
 
-  const jobs = enqueueBulk(numbers, message.trim(), session);
+  const jobs = enqueueBulk(numbers, message.trim(), sessionName);
 
   return res.json({
-    success: true,
-    parsed: numbers.length,
-    queued: jobs.filter((j) => j.status === 'queued').length,
+    success:    true,
+    session:    sessionName,
+    parsed:     numbers.length,
+    queued:     jobs.filter((j) => j.status === 'queued').length,
     duplicates: jobs.filter((j) => j.status === 'duplicate').length,
     jobs,
   });
 }
 
+// ─── GET /devices/:token/queue ────────────────────────────────────────────────
 
 function getQueue(req, res) {
-  const { status } = req.query; // optional filter: pending | sent | failed
-  const jobs = getQueueStatus(status || 'all');
-  return res.json({ success: true, count: jobs.length, jobs });
+  const { sessionName } = req;
+  const { status } = req.query;
+  const jobs = getQueueStatus(status || 'all', sessionName);
+  return res.json({ success: true, session: sessionName, count: jobs.length, jobs });
 }
 
+// ─── GET /devices/:token/queue/:jobId ────────────────────────────────────────
 
 function getQueueJob(req, res) {
   const job = getJobById(req.params.jobId);

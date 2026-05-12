@@ -1,8 +1,22 @@
 'use strict';
 
 const express = require('express');
-const multer = require('multer');
+const multer  = require('multer');
 const rateLimit = require('express-rate-limit');
+
+const {
+  createDeviceHandler,
+  listDevicesHandler,
+  getDeviceHandler,
+  deleteDeviceHandler,
+} = require('../controllers/deviceController');
+
+const {
+  resolveDevice,
+  showQRPage,
+  qrEventStream,
+  getQRStatus,
+} = require('../controllers/qrController');
 
 const {
   sendMessage,
@@ -13,40 +27,38 @@ const {
 } = require('../controllers/messageController');
 
 const { getIncomingMessages } = require('../controllers/webhookController');
-const { showQRPage, qrEventStream, getQRStatus } = require('../controllers/qrController');
 const config = require('../config');
 
 const router = express.Router();
 
+// ─── Rate limiter ─────────────────────────────────────────────────────────────
 
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.max,
+  max:      config.rateLimit.max,
   standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many requests. Please slow down.' },
+  legacyHeaders:   false,
+  message: { success: false, error: 'Too many requests.' },
 });
 
 router.use(limiter);
 
+// ─── Master API key auth (protects device management) ────────────────────────
 
 function requireApiKey(req, res, next) {
   if (!config.auth.apiKey) return next();
-
-  const key =
-    req.headers['x-api-key'] ||
-    req.query.api_key;
-
+  const key = req.headers['x-api-key'] || req.query.api_key;
   if (!key || key !== config.auth.apiKey) {
     return res.status(401).json({ success: false, error: 'Unauthorized. Invalid or missing API key.' });
   }
   next();
 }
 
+// ─── CSV upload ───────────────────────────────────────────────────────────────
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 }, 
+  limits:  { fileSize: 2 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
       cb(null, true);
@@ -56,23 +68,48 @@ const upload = multer({
   },
 });
 
+// ─── Health ───────────────────────────────────────────────────────────────────
 
 router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
 );
 
-router.get('/qrcode',        showQRPage);
-router.get('/qrcode/events', qrEventStream);
-router.get('/qrcode/status', getQRStatus);
+// ─── Device management (requires master API key) ──────────────────────────────
+//
+//  POST   /devices              → create device, get token
+//  GET    /devices              → list all devices + status
+//  GET    /devices/:token       → get single device info
+//  DELETE /devices/:token       → remove device + close session
 
+router.post  ('/devices',        requireApiKey, createDeviceHandler);
+router.get   ('/devices',        requireApiKey, listDevicesHandler);
+router.get   ('/devices/:token', requireApiKey, getDeviceHandler);
+router.delete('/devices/:token', requireApiKey, deleteDeviceHandler);
 
-router.post('/send',           requireApiKey, sendMessage);
-router.post('/bulk-send',      requireApiKey, bulkSendMessage);
-router.post('/bulk-send/csv',  requireApiKey, upload.single('file'), bulkSendCsv);
+// ─── Per-device QR (no master API key — token IS the auth) ───────────────────
+//
+//  GET /devices/:token/qrcode          → QR browser page
+//  GET /devices/:token/qrcode/events   → SSE stream
+//  GET /devices/:token/qrcode/status   → JSON status
 
-router.get('/queue',           requireApiKey, getQueue);
-router.get('/queue/:jobId',    requireApiKey, getQueueJob);
+router.get('/devices/:token/qrcode',        resolveDevice, showQRPage);
+router.get('/devices/:token/qrcode/events', resolveDevice, qrEventStream);
+router.get('/devices/:token/qrcode/status', resolveDevice, getQRStatus);
 
-router.get('/webhook/messages', requireApiKey, getIncomingMessages);
+// ─── Per-device messaging (token IS the auth) ─────────────────────────────────
+//
+//  POST /devices/:token/send
+//  POST /devices/:token/bulk-send
+//  POST /devices/:token/bulk-send/csv
+//  GET  /devices/:token/queue
+//  GET  /devices/:token/queue/:jobId
+//  GET  /devices/:token/messages
+
+router.post('/devices/:token/send',           resolveDevice, sendMessage);
+router.post('/devices/:token/bulk-send',      resolveDevice, bulkSendMessage);
+router.post('/devices/:token/bulk-send/csv',  resolveDevice, upload.single('file'), bulkSendCsv);
+router.get ('/devices/:token/queue',          resolveDevice, getQueue);
+router.get ('/devices/:token/queue/:jobId',   resolveDevice, getQueueJob);
+router.get ('/devices/:token/messages',       resolveDevice, getIncomingMessages);
 
 module.exports = router;

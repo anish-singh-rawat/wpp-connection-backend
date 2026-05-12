@@ -58,8 +58,9 @@ class MessageQueue {
     return this._jobs.get(jobId) || null;
   }
 
-  getJobs(filter = 'all') {
-    const all = Array.from(this._jobs.values());
+  getJobs(filter = 'all', sessionName = null) {
+    let all = Array.from(this._jobs.values());
+    if (sessionName) all = all.filter((j) => j.sessionName === sessionName);
     if (filter === 'all') return all;
     return all.filter((j) => j.status === filter);
   }
