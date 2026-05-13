@@ -18,6 +18,7 @@ class WhatsAppClient {
     this.webhookHandlers = [];
     this.latestQR        = null;
     this.status          = 'initialising';
+    this.destroyed       = false;
 
     this.sessionFolder = path.resolve(config.whatsapp.sessionPath, this.sessionName);
   }
@@ -73,12 +74,24 @@ class WhatsAppClient {
         if (statusSession === 'notLogged') {
           this.status = 'qr_pending';
         }
-        if (statusSession === 'browserClose' || statusSession === 'desconnectedMobile') {
+        if (statusSession === 'desconnectedMobile' || statusSession === 'disconnectedMobile') {
+          // Phone disconnected — clear ready state but keep the browser alive so
+          // wppconnect can show a fresh QR without a full restart.
+          this.latestQR = null;
+          this.isReady  = false;
+          this.status   = 'qr_pending';
+          try { getNotifiers().notifyStatusForSession(this.sessionName, 'qr_pending'); } catch (_) {}
+        }
+        if (statusSession === 'browserClose') {
           this.status  = 'disconnected';
           this.isReady = false;
           this.client  = null;
           try {
-            require('../services/sessionManager').startSession(this.sessionName);
+            if (!this.destroyed) {
+              require('../services/sessionManager').startSession(this.sessionName);
+            } else {
+              logger.info(`[WhatsApp:${this.sessionName}] Destroyed — skipping restart.`);
+            }
           } catch (_) {}
         }
       },
@@ -123,6 +136,7 @@ class WhatsAppClient {
   }
 
   async close() {
+    this.destroyed = true;
     if (this.client) {
       try {
         await this.client.close();
