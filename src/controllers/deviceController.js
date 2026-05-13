@@ -19,14 +19,17 @@ function createDeviceHandler(req, res) {
 
   return res.status(201).json({
     success: true,
-    message: 'Device created. Open the qrcode_url in your browser to scan.',
+    message: 'Device created. Connect to the SSE stream to receive the QR code.',
     device: {
-      token:      device.token,
-      label:      device.label,
-      session:    device.sessionName,
-      createdAt:  device.createdAt,
-      qrcode_url: `/devices/${device.token}/qrcode`,
-      status_url: `/devices/${device.token}/qrcode/status`,
+      token:       device.token,
+      label:       device.label,
+      session:     device.sessionName,
+      createdAt:   device.createdAt,
+      status:      'launching',
+      isReady:     false,
+      events_url:  `/devices/${device.token}/qrcode/events`,
+      status_url:  `/devices/${device.token}/qrcode/status`,
+      image_url:   `/devices/${device.token}/qrcode/image`,
     },
   });
 }
@@ -42,7 +45,9 @@ function listDevicesHandler(_req, res) {
       createdAt:  d.createdAt,
       status:     session.status,
       isReady:    session.isReady,
-      qrcode_url: `/devices/${d.token}/qrcode`,
+      events_url: `/devices/${d.token}/qrcode/events`,
+      status_url: `/devices/${d.token}/qrcode/status`,
+      image_url:  `/devices/${d.token}/qrcode/image`,
     };
   });
 
@@ -58,12 +63,15 @@ function getDeviceHandler(req, res) {
   return res.json({
     success: true,
     device: {
-      token:     device.token,
-      label:     device.label,
-      session:   device.sessionName,
-      createdAt: device.createdAt,
-      status:    session.status,
-      isReady:   session.isReady,
+      token:      device.token,
+      label:      device.label,
+      session:    device.sessionName,
+      createdAt:  device.createdAt,
+      status:     session.status,
+      isReady:    session.isReady,
+      events_url: `/devices/${device.token}/qrcode/events`,
+      status_url: `/devices/${device.token}/qrcode/status`,
+      image_url:  `/devices/${device.token}/qrcode/image`,
     },
   });
 }

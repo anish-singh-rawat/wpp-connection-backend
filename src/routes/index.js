@@ -13,9 +13,9 @@ const {
 
 const {
   resolveDevice,
-  showQRPage,
   qrEventStream,
   getQRStatus,
+  getQRImage,
 } = require('../controllers/qrController');
 
 const {
@@ -67,11 +67,6 @@ router.get('/health', (_req, res) =>
 );
 
 // ─── Device management (requires master API key) ──────────────────────────────
-//
-//  POST   /devices              → create device, get token
-//  GET    /devices              → list all devices + status
-//  GET    /devices/:token       → get single device info
-//  DELETE /devices/:token       → remove device + close session
 
 router.post  ('/devices',        requireApiKey, createDeviceHandler);
 router.get   ('/devices',        requireApiKey, listDevicesHandler);
@@ -79,23 +74,12 @@ router.get   ('/devices/:token', requireApiKey, getDeviceHandler);
 router.delete('/devices/:token', requireApiKey, deleteDeviceHandler);
 
 // ─── Per-device QR (no master API key — token IS the auth) ───────────────────
-//
-//  GET /devices/:token/qrcode          → QR browser page
-//  GET /devices/:token/qrcode/events   → SSE stream
-//  GET /devices/:token/qrcode/status   → JSON status
 
-router.get('/devices/:token/qrcode',        resolveDevice, showQRPage);
 router.get('/devices/:token/qrcode/events', resolveDevice, qrEventStream);
 router.get('/devices/:token/qrcode/status', resolveDevice, getQRStatus);
+router.get('/devices/:token/qrcode/image',  resolveDevice, getQRImage);
 
 // ─── Per-device messaging (token IS the auth) ─────────────────────────────────
-//
-//  POST /devices/:token/send
-//  POST /devices/:token/bulk-send
-//  POST /devices/:token/bulk-send/csv
-//  GET  /devices/:token/queue
-//  GET  /devices/:token/queue/:jobId
-//  GET  /devices/:token/messages
 
 router.post('/devices/:token/send',           resolveDevice, sendMessage);
 router.post('/devices/:token/bulk-send',      resolveDevice, bulkSendMessage);
