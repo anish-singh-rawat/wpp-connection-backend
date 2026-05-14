@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { createDevice, getDevice, listDevices, deleteDevice, resolveSession } = require('../services/deviceRegistry');
+const { createDevice, getDevice, listDevices, deleteDevice } = require('../services/deviceRegistry');
 const { startNewSession, stopSession } = require('../services/sessionManager');
 const { getSession } = require('../whatsapp/client');
 const config = require('../config');
@@ -21,15 +21,16 @@ function createDeviceHandler(req, res) {
     success: true,
     message: 'Device created. Connect to the SSE stream to receive the QR code.',
     device: {
-      token:       device.token,
-      label:       device.label,
-      session:     device.sessionName,
-      createdAt:   device.createdAt,
-      status:      'launching',
-      isReady:     false,
-      events_url:  `/devices/${device.token}/qrcode/events`,
-      status_url:  `/devices/${device.token}/qrcode/status`,
-      image_url:   `/devices/${device.token}/qrcode/image`,
+      token:                device.token,
+      label:                device.label,
+      session:              device.sessionName,
+      createdAt:            device.createdAt,
+      status:               'launching',
+      isReady:              false,
+      estimated_qr_seconds: 20,
+      events_url:           `/devices/${device.token}/qrcode/events`,
+      status_url:           `/devices/${device.token}/qrcode/status`,
+      image_url:            `/devices/${device.token}/qrcode/image`,
     },
   });
 }

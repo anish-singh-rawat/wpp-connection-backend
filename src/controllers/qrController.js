@@ -2,7 +2,6 @@
 
 const { getSession } = require('../whatsapp/client');
 const { resolveSession } = require('../services/deviceRegistry');
-const logger = require('../utils/logger');
 
 const sseClients = new Map();
 
