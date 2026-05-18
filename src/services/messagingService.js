@@ -21,6 +21,11 @@ function enqueueBulk(numbers, message, sessionName) {
   return queue.enqueue(numbers, message, sessionName);
 }
 
+function enqueueBulkRecipients(recipients, fallbackMessage, sessionName) {
+  logger.info(`[Messaging] Enqueueing ${recipients.length} personalised messages`);
+  return queue.enqueueRecipients(recipients, fallbackMessage, sessionName);
+}
+
 function getQueueStatus(filter, sessionName) {
   return queue.getJobs(filter, sessionName);
 }
@@ -29,4 +34,4 @@ function getJobById(jobId) {
   return queue.getJob(jobId);
 }
 
-module.exports = { sendSingle, enqueueBulk, getQueueStatus, getJobById };
+module.exports = { sendSingle, enqueueBulk, enqueueBulkRecipients, getQueueStatus, getJobById };

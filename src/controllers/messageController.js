@@ -1,7 +1,7 @@
 'use strict';
 
-const { sendSingle, enqueueBulk, getQueueStatus, getJobById } = require('../services/messagingService');
-const { parseCsvNumbers } = require('../utils/csvParser');
+const { sendSingle, enqueueBulk, enqueueBulkRecipients, getQueueStatus, getJobById } = require('../services/messagingService');
+const { parseCsvNumbers, parseCsvRecipients } = require('../utils/csvParser');
 const { isNonEmptyString, isNonEmptyArray } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
@@ -60,32 +60,38 @@ async function bulkSendCsv(req, res) {
     return res.status(400).json({ success: false, error: 'CSV file required (field: "file").' });
   }
 
-  const { message } = req.body;
+  const fallbackMessage = isNonEmptyString(req.body.message) ? req.body.message.trim() : null;
   const { sessionName } = req;
 
-  if (!isNonEmptyString(message)) {
-    return res.status(400).json({ success: false, error: '"message" is required.' });
-  }
-
-  let numbers;
+  let recipients;
   try {
-    numbers = await parseCsvNumbers(req.file.buffer);
+    recipients = await parseCsvRecipients(req.file.buffer);
   } catch (err) {
     return res.status(400).json({ success: false, error: `CSV parse error: ${err.message}` });
   }
 
-  if (numbers.length === 0) {
-    return res.status(400).json({ success: false, error: 'No numbers found in CSV.' });
+  if (recipients.length === 0) {
+    return res.status(400).json({ success: false, error: 'No recipients found in CSV.' });
   }
 
-  const jobs = enqueueBulk(numbers, message.trim(), sessionName);
+  const hasCsvMessages = recipients.some((r) => r.message);
+  if (!hasCsvMessages && !fallbackMessage) {
+    return res.status(400).json({
+      success: false,
+      error:
+        'No "Message" column found in CSV and no fallback "message" field provided in the request.',
+    });
+  }
+
+  const jobs = enqueueBulkRecipients(recipients, fallbackMessage, sessionName);
 
   return res.json({
     success:    true,
     session:    sessionName,
-    parsed:     numbers.length,
+    parsed:     recipients.length,
     queued:     jobs.filter((j) => j.status === 'queued').length,
     duplicates: jobs.filter((j) => j.status === 'duplicate').length,
+    skipped:    jobs.filter((j) => j.status === 'skipped').length,
     jobs,
   });
 }

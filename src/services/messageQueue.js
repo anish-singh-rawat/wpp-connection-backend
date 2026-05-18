@@ -54,6 +54,57 @@ class MessageQueue {
     return results;
   }
 
+  enqueueRecipients(recipients, fallbackMessage, sessionName) {
+    const session = sessionName || config.whatsapp.sessionName;
+    const results = [];
+
+    for (const recipient of recipients) {
+      const { number } = recipient;
+      const message = recipient.message || fallbackMessage;
+
+      if (!message) {
+        logger.warn(`[Queue] Skipped ${number}: no message in CSV row and no fallback provided.`);
+        results.push({ number, jobId: null, status: 'skipped', reason: 'no_message' });
+        continue;
+      }
+
+      const chatId = toChatId(number);
+      const dedupKey = `${session}:${chatId}:${message}`;
+
+      if (this._isDuplicate(dedupKey)) {
+        logger.warn(`[Queue] Duplicate skipped: ${number}`);
+        results.push({ number, jobId: null, status: 'duplicate' });
+        continue;
+      }
+
+      const jobId = uuidv4();
+      const job = {
+        id: jobId,
+        dedupKey,
+        sessionName: session,
+        number,
+        chatId,
+        message,
+        name:    recipient.name  || null,
+        title:   recipient.title || null,
+        city:    recipient.city  || null,
+        status: 'pending',
+        attempts: 0,
+        error: null,
+        enqueuedAt: new Date(),
+        processedAt: null,
+      };
+
+      this._jobs.set(jobId, job);
+      this._pending.push(jobId);
+      results.push({ number, jobId, status: 'queued' });
+    }
+
+    this._process();
+
+    return results;
+  }
+
   getJob(jobId) {
     return this._jobs.get(jobId) || null;
   }
