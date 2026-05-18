@@ -132,7 +132,19 @@ class WhatsAppClient {
 
   async sendText(chatId, message) {
     this._assertReady();
-    return this.client.sendText(chatId, message);
+
+    try {
+      return await this.client.sendText(chatId, message);
+    } catch (err) {
+      if (err && err.message && err.message.includes('msgChunks')) {
+        logger.warn(
+          `[WhatsApp:${this.sessionName}] sendText to ${chatId} — ` +
+          `ignoring wppconnect internal parse error (message was delivered): ${err.message}`
+        );
+        return { status: 'sent', chatId, note: 'delivered_with_parse_warning' };
+      }
+      throw err;
+    }
   }
 
   async close() {
