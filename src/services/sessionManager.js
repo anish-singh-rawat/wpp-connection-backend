@@ -60,8 +60,8 @@ async function startSession(sessionName, attempt = 1) {
     });
 }
 
-function bootAllDevices() {
-  const devices = listDevices();
+async function bootAllDevices() {
+  const devices = await listDevices();
   if (devices.length === 0) {
     logger.info('[SessionMgr] No registered devices. Use POST /devices to add one.');
     return;

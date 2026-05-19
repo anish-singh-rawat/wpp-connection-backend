@@ -43,7 +43,7 @@ async function bulkSendMessage(req, res) {
     return res.status(400).json({ success: false, error: 'No valid numbers provided.' });
   }
 
-  const jobs = enqueueBulk(sanitised, message.trim(), sessionName);
+  const jobs = await enqueueBulk(sanitised, message.trim(), sessionName);
 
   return res.json({
     success:    true,
@@ -83,7 +83,7 @@ async function bulkSendCsv(req, res) {
     });
   }
 
-  const jobs = enqueueBulkRecipients(recipients, fallbackMessage, sessionName);
+  const jobs = await enqueueBulkRecipients(recipients, fallbackMessage, sessionName);
 
   return res.json({
     success:    true,
@@ -97,16 +97,16 @@ async function bulkSendCsv(req, res) {
 }
 
 
-function getQueue(req, res) {
+async function getQueue(req, res) {
   const { sessionName } = req;
   const { status } = req.query;
-  const jobs = getQueueStatus(status || 'all', sessionName);
+  const jobs = await getQueueStatus(status || 'all', sessionName);
   return res.json({ success: true, session: sessionName, count: jobs.length, jobs });
 }
 
 
-function getQueueJob(req, res) {
-  const job = getJobById(req.params.jobId);
+async function getQueueJob(req, res) {
+  const job = await getJobById(req.params.jobId);
   if (!job) {
     return res.status(404).json({ success: false, error: 'Job not found.' });
   }

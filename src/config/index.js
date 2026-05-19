@@ -1,7 +1,7 @@
 'use strict';
 
 if (process.env.NODE_ENV === 'production') {
-  const required = ['API_KEY'];
+  const required = ['API_KEY', 'MONGODB_URL'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`[Config] Missing required env vars: ${missing.join(', ')}`);
@@ -13,6 +13,10 @@ const config = {
   server: {
     port: parseInt(process.env.PORT, 10) || 8086,
     env: process.env.NODE_ENV || 'development',
+  },
+
+  mongodb: {
+    uri: process.env.MONGODB_URL || 'mongodb://localhost:27017/wp-system',
   },
 
   auth: {

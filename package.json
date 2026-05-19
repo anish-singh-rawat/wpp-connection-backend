@@ -19,6 +19,7 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
+    "mongoose": "9.6.2",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "qrcode": "^1.5.4",

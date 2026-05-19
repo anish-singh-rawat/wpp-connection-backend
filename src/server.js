@@ -7,11 +7,11 @@ const hpp = require('hpp');
 const compression = require('compression');
 const morgan = require('morgan');
 const express = require('express');
-const cookieParser = require('cookie-parser')
-
+const mongoose = require('mongoose');
 
 const config  = require('./config');
 const logger  = require('./utils/logger');
+const queue   = require('./services/messageQueue');
 const { bootAllDevices, shutdownAll } = require('./services/sessionManager');
 const routes  = require('./routes');
 
@@ -59,7 +59,6 @@ app.use(helmet({
 app.use(compression()); 
 app.use(morgan('combined'));
 app.use(hpp()); 
-app.use(cookieParser())
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -89,6 +88,12 @@ async function bootstrap() {
   try {
     logger.info(`[Server] Environment: ${config.server.env}`);
 
+    logger.info('[Server] Connecting to MongoDB...');
+    await mongoose.connect(config.mongodb.uri);
+    logger.info('[Server] MongoDB connected.');
+
+    await queue.recoverPendingJobs();
+
     const server = app.listen(config.server.port, '0.0.0.0', () => {
       logger.info(`[Server] Listening on 0.0.0.0:${config.server.port}`);
     });
@@ -107,6 +112,8 @@ async function bootstrap() {
 async function shutdown(signal) {
   logger.info(`[Server] ${signal} received. Shutting down...`);
   await shutdownAll();
+  await mongoose.disconnect();
+  logger.info('[Server] MongoDB disconnected.');
   process.exit(0);
 }
 

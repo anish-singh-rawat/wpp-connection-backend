@@ -37,9 +37,9 @@ function notifyConnected() {}
 function notifyStatus()    {}
 
 
-function resolveDevice(req, res, next) {
+async function resolveDevice(req, res, next) {
   const token = req.params.token;
-  const sessionName = resolveSession(token);
+  const sessionName = await resolveSession(token);
   if (!sessionName) {
     return res.status(404).json({ success: false, error: 'Device not found. Invalid token.' });
   }

@@ -16,21 +16,21 @@ async function sendSingle(number, message, sessionName) {
   return { number, status: 'sent' };
 }
 
-function enqueueBulk(numbers, message, sessionName) {
+async function enqueueBulk(numbers, message, sessionName) {
   logger.info(`[Messaging] Enqueueing ${numbers.length} messages`);
   return queue.enqueue(numbers, message, sessionName);
 }
 
-function enqueueBulkRecipients(recipients, fallbackMessage, sessionName) {
+async function enqueueBulkRecipients(recipients, fallbackMessage, sessionName) {
   logger.info(`[Messaging] Enqueueing ${recipients.length} personalised messages`);
   return queue.enqueueRecipients(recipients, fallbackMessage, sessionName);
 }
 
-function getQueueStatus(filter, sessionName) {
+async function getQueueStatus(filter, sessionName) {
   return queue.getJobs(filter, sessionName);
 }
 
-function getJobById(jobId) {
+async function getJobById(jobId) {
   return queue.getJob(jobId);
 }
 

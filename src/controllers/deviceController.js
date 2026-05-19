@@ -9,9 +9,9 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 
-function createDeviceHandler(req, res) {
+async function createDeviceHandler(req, res) {
   const { label } = req.body;
-  const device = createDevice(label);
+  const device = await createDevice(label);
 
   startNewSession(device.sessionName);
 
@@ -36,8 +36,8 @@ function createDeviceHandler(req, res) {
 }
 
 
-function listDevicesHandler(_req, res) {
-  const devices = listDevices().map((d) => {
+async function listDevicesHandler(_req, res) {
+  const devices = (await listDevices()).map((d) => {
     const session = getSession(d.sessionName);
     return {
       token:      d.token,
@@ -55,8 +55,8 @@ function listDevicesHandler(_req, res) {
   return res.json({ success: true, count: devices.length, devices });
 }
 
-function getDeviceHandler(req, res) {
-  const device = getDevice(req.params.token);
+async function getDeviceHandler(req, res) {
+  const device = await getDevice(req.params.token);
   if (!device) {
     return res.status(404).json({ success: false, error: 'Device not found.' });
   }
@@ -79,7 +79,7 @@ function getDeviceHandler(req, res) {
 
 async function deleteDeviceHandler(req, res) {
   const { token } = req.params;
-  const device = getDevice(token);
+  const device = await getDevice(token);
   if (!device) {
     return res.status(404).json({ success: false, error: 'Device not found.' });
   }
@@ -96,7 +96,7 @@ async function deleteDeviceHandler(req, res) {
     logger.warn(`[Device] Could not remove session folder "${sessionFolder}": ${err.message}`);
   }
 
-  deleteDevice(token);
+  await deleteDevice(token);
 
   logger.info(`[Device] Deleted: ${device.sessionName}`);
   return res.json({ success: true, message: `Device "${device.label}" removed.` });

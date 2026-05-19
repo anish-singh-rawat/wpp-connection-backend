@@ -1,71 +1,60 @@
 'use strict';
 
-const fs   = require('fs');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const Device = require('../models/Device');
 const logger = require('../utils/logger');
 
-const REGISTRY_PATH = path.resolve(
-  process.env.SESSION_PATH || './sessions',
-  'device-registry.json'
-);
-
-let registry = {};
-
-function load() {
-  try {
-    if (fs.existsSync(REGISTRY_PATH)) {
-      registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
-      logger.info(`[Registry] Loaded ${Object.keys(registry).length} device(s)`);
-    }
-  } catch (err) {
-    logger.error(`[Registry] Failed to load registry: ${err.message}`);
-    registry = {};
-  }
-}
-
-function save() {
-  try {
-    fs.mkdirSync(path.dirname(REGISTRY_PATH), { recursive: true });
-    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2));
-  } catch (err) {
-    logger.error(`[Registry] Failed to save registry: ${err.message}`);
-  }
-}
-
-function createDevice(label) {
+async function createDevice(label) {
   const token       = uuidv4();
-  const sessionName = `device-${token.split('-')[0]}`; 
-  const createdAt   = new Date().toISOString();
+  const sessionName = `device-${token.split('-')[0]}`;
 
-  registry[token] = { sessionName, label: label || sessionName, createdAt };
-  save();
+  const device = await Device.create({
+    token,
+    sessionName,
+    label: label || sessionName,
+  });
 
-  logger.info(`[Registry] Created device: ${sessionName} (token: ${token})`);
-  return { token, sessionName, label: registry[token].label, createdAt };
+  logger.info(`[Registry] Created device: ${device.sessionName} (token: ${token})`);
+
+  return {
+    token:       device.token,
+    sessionName: device.sessionName,
+    label:       device.label,
+    createdAt:   device.createdAt,
+  };
 }
 
-function getDevice(token) {
-  if (!token || !registry[token]) return null;
-  return { token, ...registry[token] };
+async function deleteDevice(token) {
+  const result = await Device.deleteOne({ token });
+  return result.deletedCount > 0;
 }
 
-function listDevices() {
-  return Object.entries(registry).map(([token, data]) => ({ token, ...data }));
+
+async function getDevice(token) {
+  if (!token) return null;
+  const device = await Device.findOne({ token }).lean();
+  if (!device) return null;
+  return {
+    token:       device.token,
+    sessionName: device.sessionName,
+    label:       device.label,
+    createdAt:   device.createdAt,
+  };
 }
 
-function deleteDevice(token) {
-  if (!registry[token]) return false;
-  delete registry[token];
-  save();
-  return true;
+async function listDevices() {
+  const devices = await Device.find({}).lean();
+  return devices.map((d) => ({
+    token:       d.token,
+    sessionName: d.sessionName,
+    label:       d.label,
+    createdAt:   d.createdAt,
+  }));
 }
 
-function resolveSession(token) {
-  const device = getDevice(token);
+async function resolveSession(token) {
+  const device = await getDevice(token);
   return device ? device.sessionName : null;
 }
-
-load();
 
 module.exports = { createDevice, getDevice, listDevices, deleteDevice, resolveSession };

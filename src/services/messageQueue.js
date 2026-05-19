@@ -1,60 +1,53 @@
 'use strict';
 
 const { v4: uuidv4 } = require('uuid');
+const MessageJob = require('../models/MessageJob');
 const { getSession } = require('../whatsapp/client');
 const { randomDelay, toChatId } = require('../utils/helpers');
 const config = require('../config');
 const logger = require('../utils/logger');
 
-
 class MessageQueue {
   constructor() {
-    this._jobs = new Map();
-    this._pending = [];
-    this._processing = false;
+    this._pendingIds  = []; 
+    this._processing  = false;
   }
 
-
-  enqueue(numbers, message, sessionName) {
+  async enqueue(numbers, message, sessionName) {
     const session = sessionName || config.whatsapp.sessionName;
     const results = [];
 
     for (const number of numbers) {
-      const chatId = toChatId(number);
+      const chatId   = toChatId(number);
       const dedupKey = `${session}:${chatId}:${message}`;
 
-      if (this._isDuplicate(dedupKey)) {
+      if (await this._isDuplicate(dedupKey)) {
         logger.warn(`[Queue] Duplicate skipped: ${number}`);
         results.push({ number, jobId: null, status: 'duplicate' });
         continue;
       }
 
       const jobId = uuidv4();
-      const job = {
-        id: jobId,
+      await MessageJob.create({
+        _id:         jobId,
         dedupKey,
         sessionName: session,
         number,
         chatId,
         message,
-        status: 'pending',
-        attempts: 0,
-        error: null,
-        enqueuedAt: new Date(),
-        processedAt: null,
-      };
+        status:      'pending',
+        enqueuedAt:  new Date(),
+      });
 
-      this._jobs.set(jobId, job);
-      this._pending.push(jobId);
+      this._pendingIds.push(jobId);
       results.push({ number, jobId, status: 'queued' });
     }
 
     this._process();
-
     return results;
   }
 
-  enqueueRecipients(recipients, fallbackMessage, sessionName) {
+  async enqueueRecipients(recipients, fallbackMessage, sessionName) {
     const session = sessionName || config.whatsapp.sessionName;
     const results = [];
 
@@ -68,76 +61,94 @@ class MessageQueue {
         continue;
       }
 
-      const chatId = toChatId(number);
+      const chatId   = toChatId(number);
       const dedupKey = `${session}:${chatId}:${message}`;
 
-      if (this._isDuplicate(dedupKey)) {
+      if (await this._isDuplicate(dedupKey)) {
         logger.warn(`[Queue] Duplicate skipped: ${number}`);
         results.push({ number, jobId: null, status: 'duplicate' });
         continue;
       }
 
       const jobId = uuidv4();
-      const job = {
-        id: jobId,
+      await MessageJob.create({
+        _id:         jobId,
         dedupKey,
         sessionName: session,
         number,
         chatId,
         message,
-        name:    recipient.name  || null,
-        title:   recipient.title || null,
-        city:    recipient.city  || null,
-        status: 'pending',
-        attempts: 0,
-        error: null,
-        enqueuedAt: new Date(),
-        processedAt: null,
-      };
+        name:        recipient.name  || null,
+        title:       recipient.title || null,
+        city:        recipient.city  || null,
+        status:      'pending',
+        enqueuedAt:  new Date(),
+      });
 
-      this._jobs.set(jobId, job);
-      this._pending.push(jobId);
+      this._pendingIds.push(jobId);
       results.push({ number, jobId, status: 'queued' });
     }
 
     this._process();
-
     return results;
   }
 
-  getJob(jobId) {
-    return this._jobs.get(jobId) || null;
+  async getJob(jobId) {
+    const job = await MessageJob.findById(jobId).lean();
+    return job ? this._toPlain(job) : null;
   }
 
-  getJobs(filter = 'all', sessionName = null) {
-    let all = Array.from(this._jobs.values());
-    if (sessionName) all = all.filter((j) => j.sessionName === sessionName);
-    if (filter === 'all') return all;
-    return all.filter((j) => j.status === filter);
+  async getJobs(filter = 'all', sessionName = null) {
+    const query = {};
+    if (sessionName) query.sessionName = sessionName;
+    if (filter !== 'all') query.status = filter;
+
+    const jobs = await MessageJob.find(query).sort({ enqueuedAt: -1 }).lean();
+    return jobs.map((j) => this._toPlain(j));
   }
 
-  _isDuplicate(dedupKey) {
-    for (const job of this._jobs.values()) {
-      if (job.dedupKey === dedupKey && (job.status === 'pending' || job.status === 'sending')) {
-        return true;
+
+  async recoverPendingJobs() {
+    await MessageJob.updateMany(
+      { status: 'sending' },
+      { $set: { status: 'pending', attempts: 0 } }
+    );
+
+    const pendingJobs = await MessageJob.find({ status: 'pending' })
+      .sort({ enqueuedAt: 1 })
+      .select('_id')
+      .lean();
+
+    if (pendingJobs.length > 0) {
+      logger.info(`[Queue] Recovering ${pendingJobs.length} pending job(s) from MongoDB...`);
+      for (const j of pendingJobs) {
+        this._pendingIds.push(j._id);
       }
+      this._process();
     }
-    return false;
+  }
+
+  async _isDuplicate(dedupKey) {
+    const existing = await MessageJob.findOne({
+      dedupKey,
+      status: { $in: ['pending', 'sending'] },
+    }).lean();
+    return !!existing;
   }
 
   async _process() {
-    if (this._processing) return; 
+    if (this._processing) return;
     this._processing = true;
 
-    while (this._pending.length > 0) {
-      const jobId = this._pending.shift();
-      const job = this._jobs.get(jobId);
+    while (this._pendingIds.length > 0) {
+      const jobId = this._pendingIds.shift();
+      const job   = await MessageJob.findById(jobId);
 
       if (!job || job.status !== 'pending') continue;
 
       await this._sendWithRetry(job);
 
-      if (this._pending.length > 0) {
+      if (this._pendingIds.length > 0) {
         await randomDelay();
       }
     }
@@ -150,14 +161,17 @@ class MessageQueue {
 
     while (job.attempts <= maxRetries) {
       job.attempts += 1;
-      job.status = 'sending';
+      job.status    = 'sending';
+      await job.save();
 
       try {
         const session = getSession(job.sessionName);
         await session.sendText(job.chatId, job.message);
 
-        job.status = 'sent';
+        job.status      = 'sent';
         job.processedAt = new Date();
+        await job.save();
+
         logger.info(`[Queue] ✓ Sent to ${job.number} (attempt ${job.attempts})`);
         return;
       } catch (err) {
@@ -172,9 +186,30 @@ class MessageQueue {
       }
     }
 
-    job.status = 'failed';
+    job.status      = 'failed';
     job.processedAt = new Date();
+    await job.save();
+
     logger.error(`[Queue] ✗ Permanently failed for ${job.number} after ${job.attempts} attempts.`);
+  }
+
+  _toPlain(doc) {
+    return {
+      id:          doc._id,
+      dedupKey:    doc.dedupKey,
+      sessionName: doc.sessionName,
+      number:      doc.number,
+      chatId:      doc.chatId,
+      message:     doc.message,
+      name:        doc.name,
+      title:       doc.title,
+      city:        doc.city,
+      status:      doc.status,
+      attempts:    doc.attempts,
+      error:       doc.error,
+      enqueuedAt:  doc.enqueuedAt,
+      processedAt: doc.processedAt,
+    };
   }
 }
 
