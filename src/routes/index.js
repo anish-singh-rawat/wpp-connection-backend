@@ -66,20 +66,14 @@ router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
 );
 
-// ─── Device management (requires master API key) ──────────────────────────────
-
 router.post  ('/devices',        requireApiKey, createDeviceHandler);
 router.get   ('/devices',        requireApiKey, listDevicesHandler);
 router.get   ('/devices/:token', requireApiKey, getDeviceHandler);
 router.delete('/devices/:token', requireApiKey, deleteDeviceHandler);
 
-// ─── Per-device QR (no master API key — token IS the auth) ───────────────────
-
 router.get('/devices/:token/qrcode/events', resolveDevice, qrEventStream);
 router.get('/devices/:token/qrcode/status', resolveDevice, getQRStatus);
 router.get('/devices/:token/qrcode/image',  resolveDevice, getQRImage);
-
-// ─── Per-device messaging (token IS the auth) ─────────────────────────────────
 
 router.post('/devices/:token/send',           resolveDevice, sendMessage);
 router.post('/devices/:token/bulk-send',      resolveDevice, bulkSendMessage);

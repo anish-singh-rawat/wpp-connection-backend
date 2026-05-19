@@ -26,7 +26,7 @@ const logger = createLogger({
     }),
     new transports.File({
       filename: path.join('logs', 'app.log'),
-      maxsize: 5 * 1024 * 1024, // 5 MB
+      maxsize: 5 * 1024 * 1024, 
       maxFiles: 5,
       tailable: true,
     }),

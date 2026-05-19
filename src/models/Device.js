@@ -9,7 +9,7 @@ const deviceSchema = new mongoose.Schema(
     label:       { type: String, default: '' },
   },
   {
-    timestamps: true,   // adds createdAt + updatedAt automatically
+    timestamps: true, 
     versionKey: false,
   }
 );

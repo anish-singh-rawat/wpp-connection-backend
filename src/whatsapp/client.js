@@ -78,14 +78,13 @@ class WhatsAppClient {
         if (statusSession === 'inChat' || statusSession === 'isLogged') {
           this.latestQR = null;
           this.status   = 'connected';
+          this.isReady  = true;   
           try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
         }
         if (statusSession === 'notLogged') {
           this.status = 'qr_pending';
         }
         if (statusSession === 'desconnectedMobile' || statusSession === 'disconnectedMobile') {
-          // Phone disconnected — clear ready state but keep the browser alive so
-          // wppconnect can show a fresh QR without a full restart.
           this.latestQR = null;
           this.isReady  = false;
           this.status   = 'qr_pending';
