@@ -10,6 +10,15 @@ function getNotifiers() {
   return require('../controllers/qrController');
 }
 
+function isPostSendLookupError(msg) {
+  return (
+    msg.includes('msgChunks') ||                  
+    msg.includes('_out not found') ||             
+    msg.includes('findOrCreateLatestChat') ||    
+    msg.includes('not found') && msg.includes('@lid') 
+  );
+}
+
 class WhatsAppClient {
   constructor(sessionName) {
     this.sessionName     = sessionName;
@@ -136,12 +145,12 @@ class WhatsAppClient {
     try {
       return await this.client.sendText(chatId, message);
     } catch (err) {
-      if (err && err.message && err.message.includes('msgChunks')) {
+      if (err && err.message && isPostSendLookupError(err.message)) {
         logger.warn(
           `[WhatsApp:${this.sessionName}] sendText to ${chatId} — ` +
-          `ignoring wppconnect internal parse error (message was delivered): ${err.message}`
+          `message delivered but post-send lookup failed (safe to ignore): ${err.message}`
         );
-        return { status: 'sent', chatId, note: 'delivered_with_parse_warning' };
+        return { status: 'sent', chatId, note: 'delivered_with_lookup_warning' };
       }
       throw err;
     }
