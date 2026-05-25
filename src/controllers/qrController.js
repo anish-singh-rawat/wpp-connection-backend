@@ -6,45 +6,55 @@ const socketManager = require('../services/socketManager');
 
 const sseClients = new Map();
 
+const sessionTokenMap = new Map();
+
+function registerSessionToken(sessionName, token) {
+  sessionTokenMap.set(sessionName, token);
+}
+
 function getClients(sessionName) {
   if (!sseClients.has(sessionName)) sseClients.set(sessionName, new Set());
   return sseClients.get(sessionName);
 }
-
 async function resolveToken(sessionName) {
+  if (sessionTokenMap.has(sessionName)) {
+    return sessionTokenMap.get(sessionName);
+  }
   try {
     const devices = await listDevices();
-    const found = devices.find((d) => d.sessionName === sessionName);
-    return found ? found.token : null;
+    for (const d of devices) {
+      sessionTokenMap.set(d.sessionName, d.token);
+    }
+    return sessionTokenMap.get(sessionName) || null;
   } catch (_) {
     return null;
   }
 }
-
 function notifyQRUpdateForSession(sessionName, base64Qr) {
   const data = JSON.stringify({ type: 'qr', qr: base64Qr });
   for (const res of getClients(sessionName)) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
-    if (token) {
-      socketManager.emitDeviceQR(token, sessionName, base64Qr);
-      socketManager.emitDeviceStatus(token, sessionName, 'qr_ready', false);
-    }
+    if (!token) return;
+    socketManager.emitDeviceQR(token, sessionName, base64Qr);
+    socketManager.emitDeviceStatus(token, sessionName, 'qr_ready', false);
   });
 }
 
 function notifyConnectedForSession(sessionName) {
+  const session = getSession(sessionName);
+  if (!session) return;
+
   const data = JSON.stringify({ type: 'connected' });
   for (const res of getClients(sessionName)) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
-    if (token) {
-      socketManager.emitDeviceConnected(token, sessionName);
-      socketManager.emitDeviceStatus(token, sessionName, 'connected', true);
-      socketManager.emitDevicesUpdate();
-    }
+    if (!token) return;
+    socketManager.emitDeviceConnected(token, sessionName);
+    socketManager.emitDeviceStatus(token, sessionName, 'connected', true);
+    socketManager.emitDevicesUpdate();
   });
 }
 
@@ -54,10 +64,9 @@ function notifyStatusForSession(sessionName, status) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
-    if (token) {
-      const session = getSession(sessionName);
-      socketManager.emitDeviceStatus(token, sessionName, status, session?.isReady ?? false);
-    }
+    if (!token) return;
+    const session = getSession(sessionName);
+    socketManager.emitDeviceStatus(token, sessionName, status, session?.isReady ?? false);
   });
 }
 
@@ -121,7 +130,6 @@ function qrEventStream(req, res) {
   }
 }
 
-
 function getQRStatus(req, res) {
   const session = getSession(req.sessionName);
   return res.json({
@@ -132,7 +140,6 @@ function getQRStatus(req, res) {
     hasQR:   !!session.latestQR,
   });
 }
-
 
 function getQRImage(req, res) {
   const session = getSession(req.sessionName);
@@ -173,5 +180,6 @@ module.exports = {
   notifyQRUpdate,
   notifyConnected,
   notifyStatus,
+  registerSessionToken,   
 };
 

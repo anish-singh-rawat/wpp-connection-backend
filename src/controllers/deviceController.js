@@ -14,6 +14,8 @@ async function createDeviceHandler(req, res) {
   const { label } = req.body;
   const device = await createDevice(label);
 
+  require('./qrController').registerSessionToken(device.sessionName, device.token);
+
   startNewSession(device.sessionName);
 
   logger.info(`[Device] Created: ${device.sessionName}`);

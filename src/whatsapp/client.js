@@ -28,6 +28,7 @@ class WhatsAppClient {
     this.latestQR        = null;
     this.status          = 'initialising';
     this.destroyed       = false;
+    this.qrWasShown      = false;  
 
     this.sessionFolder = path.resolve(config.whatsapp.sessionPath, this.sessionName);
   }
@@ -64,9 +65,10 @@ class WhatsAppClient {
       puppeteerOptions,
 
       catchQR: (base64Qr, _asciiQR, attempts) => {
-        this.latestQR = base64Qr;
-        this.status   = 'qr_ready';
-        this.isReady  = false; 
+        this.latestQR   = base64Qr;
+        this.status     = 'qr_ready';
+        this.isReady    = false;
+        this.qrWasShown = true;   
         logger.info(`[WhatsApp:${this.sessionName}] QR ready (attempt ${attempts})`);
         try {
           getNotifiers().notifyQRUpdateForSession(this.sessionName, base64Qr);
@@ -77,9 +79,13 @@ class WhatsAppClient {
         logger.info(`[WhatsApp:${this.sessionName}] Status: ${statusSession}`);
 
         if (statusSession === 'inChat' || statusSession === 'isLogged') {
+          if (!this.qrWasShown) {
+            logger.info(`[WhatsApp:${this.sessionName}] Ignoring premature inChat — QR not yet shown`);
+            return;
+          }
           this.latestQR = null;
           this.status   = 'connected';
-          this.isReady  = true;   
+          this.isReady  = true;
           try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
         }
         if (statusSession === 'notLogged') {
@@ -115,10 +121,12 @@ class WhatsAppClient {
     });
 
     if (this.status !== 'qr_ready' && this.status !== 'qr_pending') {
-      this.isReady  = true;
-      this.status   = 'connected';
-      this.latestQR = null;
+      this.isReady     = true;
+      this.status      = 'connected';
+      this.latestQR    = null;
+      this.qrWasShown  = true;   
       logger.info(`[WhatsApp:${this.sessionName}] Ready (auto-authenticated).`);
+      try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
     } else {
       logger.info(`[WhatsApp:${this.sessionName}] Browser ready — waiting for QR scan (status: ${this.status}).`);
     }

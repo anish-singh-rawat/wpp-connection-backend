@@ -67,6 +67,14 @@ async function bootAllDevices() {
     return;
   }
   logger.info(`[SessionMgr] Booting ${devices.length} device(s)...`);
+
+  try {
+    const { registerSessionToken } = require('../controllers/qrController');
+    for (const device of devices) {
+      registerSessionToken(device.sessionName, device.token);
+    }
+  } catch (_) {}
+
   for (const device of devices) {
     startSession(device.sessionName);
   }
