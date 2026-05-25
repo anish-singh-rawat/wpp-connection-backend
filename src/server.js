@@ -14,6 +14,7 @@ const logger  = require('./utils/logger');
 const queue   = require('./services/messageQueue');
 const { bootAllDevices, shutdownAll } = require('./services/sessionManager');
 const routes  = require('./routes');
+const socketManager = require('./services/socketManager');
 
 const app = express();
 
@@ -54,11 +55,18 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws://localhost:8086", "wss://localhost:8086", "http://localhost:8086", "ws://139.59.65.108:8086", "wss://139.59.65.108:8086"],
     },
   },
 }));
 
-app.use(compression()); 
+
+app.use(compression({
+  filter(req, res) {
+    if (req.path.endsWith('/events')) return false;
+    return compression.filter(req, res);
+  },
+}));
 app.use(morgan('combined'));
 app.use(hpp()); 
 
@@ -102,6 +110,9 @@ async function bootstrap() {
 
     server.keepAliveTimeout = 65000;
     server.headersTimeout   = 66000;
+
+    socketManager.init(server);
+
     bootAllDevices();
 
   } catch (err) {

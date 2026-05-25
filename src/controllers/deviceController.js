@@ -5,6 +5,7 @@ const path = require('path');
 const { createDevice, getDevice, listDevices, deleteDevice } = require('../services/deviceRegistry');
 const { startNewSession, stopSession } = require('../services/sessionManager');
 const { getSession } = require('../whatsapp/client');
+const socketManager = require('../services/socketManager');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -16,6 +17,8 @@ async function createDeviceHandler(req, res) {
   startNewSession(device.sessionName);
 
   logger.info(`[Device] Created: ${device.sessionName}`);
+
+  socketManager.emitDevicesUpdate();
 
   return res.status(201).json({
     success: true,
@@ -99,6 +102,9 @@ async function deleteDeviceHandler(req, res) {
   await deleteDevice(token);
 
   logger.info(`[Device] Deleted: ${device.sessionName}`);
+
+  socketManager.emitDevicesUpdate();
+
   return res.json({ success: true, message: `Device "${device.label}" removed.` });
 }
 

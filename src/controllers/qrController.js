@@ -1,7 +1,8 @@
 'use strict';
 
 const { getSession } = require('../whatsapp/client');
-const { resolveSession } = require('../services/deviceRegistry');
+const { resolveSession, listDevices } = require('../services/deviceRegistry');
+const socketManager = require('../services/socketManager');
 
 const sseClients = new Map();
 
@@ -10,11 +11,27 @@ function getClients(sessionName) {
   return sseClients.get(sessionName);
 }
 
+async function resolveToken(sessionName) {
+  try {
+    const devices = await listDevices();
+    const found = devices.find((d) => d.sessionName === sessionName);
+    return found ? found.token : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function notifyQRUpdateForSession(sessionName, base64Qr) {
   const data = JSON.stringify({ type: 'qr', qr: base64Qr });
   for (const res of getClients(sessionName)) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
+  resolveToken(sessionName).then((token) => {
+    if (token) {
+      socketManager.emitDeviceQR(token, sessionName, base64Qr);
+      socketManager.emitDeviceStatus(token, sessionName, 'qr_ready', false);
+    }
+  });
 }
 
 function notifyConnectedForSession(sessionName) {
@@ -22,6 +39,13 @@ function notifyConnectedForSession(sessionName) {
   for (const res of getClients(sessionName)) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
+  resolveToken(sessionName).then((token) => {
+    if (token) {
+      socketManager.emitDeviceConnected(token, sessionName);
+      socketManager.emitDeviceStatus(token, sessionName, 'connected', true);
+      socketManager.emitDevicesUpdate();
+    }
+  });
 }
 
 function notifyStatusForSession(sessionName, status) {
@@ -29,6 +53,12 @@ function notifyStatusForSession(sessionName, status) {
   for (const res of getClients(sessionName)) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
+  resolveToken(sessionName).then((token) => {
+    if (token) {
+      const session = getSession(sessionName);
+      socketManager.emitDeviceStatus(token, sessionName, status, session?.isReady ?? false);
+    }
+  });
 }
 
 function notifyQRUpdate()  {}
@@ -38,7 +68,16 @@ function notifyStatus()    {}
 
 async function resolveDevice(req, res, next) {
   const token = req.params.token;
-  const sessionName = await resolveSession(token);
+
+  let sessionName = null;
+  for (let i = 0; i < 6; i++) {
+    try {
+      sessionName = await resolveSession(token);
+    } catch (_) {}
+    if (sessionName) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
   if (!sessionName) {
     return res.status(404).json({ success: false, error: 'Device not found. Invalid token.' });
   }
@@ -68,9 +107,14 @@ function qrEventStream(req, res) {
     getClients(sessionName).delete(res);
   });
 
-  if (session.isReady || session.status === 'connected') {
+  if (!session) {
+    res.write(`data: ${JSON.stringify({ type: 'waiting', status: 'launching' })}\n\n`);
+    return;
+  }
+
+  if (session.status === 'connected') {
     res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
-  } else if (session.latestQR && session.status === 'qr_ready') {
+  } else if (session.latestQR) {
     res.write(`data: ${JSON.stringify({ type: 'qr', qr: session.latestQR })}\n\n`);
   } else {
     res.write(`data: ${JSON.stringify({ type: 'waiting', status: session.status })}\n\n`);

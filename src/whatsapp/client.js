@@ -66,6 +66,7 @@ class WhatsAppClient {
       catchQR: (base64Qr, _asciiQR, attempts) => {
         this.latestQR = base64Qr;
         this.status   = 'qr_ready';
+        this.isReady  = false; 
         logger.info(`[WhatsApp:${this.sessionName}] QR ready (attempt ${attempts})`);
         try {
           getNotifiers().notifyQRUpdateForSession(this.sessionName, base64Qr);
@@ -113,10 +114,14 @@ class WhatsAppClient {
       },
     });
 
-    this.isReady  = true;
-    this.status   = 'connected';
-    this.latestQR = null;
-    logger.info(`[WhatsApp:${this.sessionName}] Ready.`);
+    if (this.status !== 'qr_ready' && this.status !== 'qr_pending') {
+      this.isReady  = true;
+      this.status   = 'connected';
+      this.latestQR = null;
+      logger.info(`[WhatsApp:${this.sessionName}] Ready (auto-authenticated).`);
+    } else {
+      logger.info(`[WhatsApp:${this.sessionName}] Browser ready — waiting for QR scan (status: ${this.status}).`);
+    }
 
     this._registerIncomingMessageListener();
     return this.client;

@@ -2,6 +2,7 @@
 
 const { getSession } = require('../whatsapp/client');
 const IncomingMessage = require('../models/IncomingMessage');
+const socketManager = require('../services/socketManager');
 const logger = require('../utils/logger');
 
 function registerIncomingListener(sessionName) {
@@ -9,7 +10,7 @@ function registerIncomingListener(sessionName) {
 
   session.onMessage(async (msg) => {
     try {
-      await IncomingMessage.create({
+      const saved = await IncomingMessage.create({
         sessionName,
         from:       msg.from,
         body:       msg.body,
@@ -18,6 +19,15 @@ function registerIncomingListener(sessionName) {
         receivedAt: new Date(),
       });
       logger.info(`[Webhook:${sessionName}] Incoming from ${msg.from} — saved to DB`);
+
+      socketManager.emitInboxMessage(sessionName, {
+        sessionName,
+        from:       saved.from,
+        body:       saved.body,
+        type:       saved.type,
+        timestamp:  saved.timestamp,
+        receivedAt: saved.receivedAt,
+      });
     } catch (err) {
       logger.error(`[Webhook:${sessionName}] Failed to save incoming message: ${err.message}`);
     }

@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const MessageJob = require('../models/MessageJob');
 const { getSession } = require('../whatsapp/client');
 const { randomDelay, toChatId } = require('../utils/helpers');
+const socketManager = require('./socketManager');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -44,6 +45,9 @@ class MessageQueue {
     }
 
     this._process();
+    if (results.some((r) => r.status === 'queued')) {
+      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+    }
     return results;
   }
 
@@ -90,6 +94,9 @@ class MessageQueue {
     }
 
     this._process();
+    if (results.some((r) => r.status === 'queued')) {
+      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+    }
     return results;
   }
 
@@ -163,6 +170,7 @@ class MessageQueue {
       job.attempts += 1;
       job.status    = 'sending';
       await job.save();
+      socketManager.emitQueueJob(job.sessionName, this._toPlain(job));
 
       try {
         const session = getSession(job.sessionName);
@@ -171,6 +179,7 @@ class MessageQueue {
         job.status      = 'sent';
         job.processedAt = new Date();
         await job.save();
+        socketManager.emitQueueJob(job.sessionName, this._toPlain(job));
 
         logger.info(`[Queue] ✓ Sent to ${job.number} (attempt ${job.attempts})`);
         return;
@@ -189,6 +198,7 @@ class MessageQueue {
     job.status      = 'failed';
     job.processedAt = new Date();
     await job.save();
+    socketManager.emitQueueJob(job.sessionName, this._toPlain(job));
 
     logger.error(`[Queue] ✗ Permanently failed for ${job.number} after ${job.attempts} attempts.`);
   }
