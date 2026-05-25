@@ -4,8 +4,9 @@
 module.exports = {
   apps: [
     {
-      name: 'whatsapp-api',
+      name: 'wpp-connection-backend',
       script: 'src/server.js',
+      cwd: '/root/wpp-connection-backend',   // absolute path — works from anywhere
       instances: 1,           // MUST be 1 — WPPConnect session is not cluster-safe
       exec_mode: 'fork',
       autorestart: true,
@@ -14,7 +15,7 @@ module.exports = {
 
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 8086,
       },
 
       // Log files
