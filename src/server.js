@@ -9,11 +9,11 @@ const morgan = require('morgan');
 const express = require('express');
 const mongoose = require('mongoose');
 
-const config  = require('./config');
-const logger  = require('./utils/logger');
-const queue   = require('./services/messageQueue');
+const config = require('./config');
+const logger = require('./utils/logger');
+const queue = require('./services/messageQueue');
 const { bootAllDevices, shutdownAll } = require('./services/sessionManager');
-const routes  = require('./routes');
+const routes = require('./routes');
 const socketManager = require('./services/socketManager');
 
 const app = express();
@@ -26,10 +26,16 @@ const allowedOrigins = [
   "https://visualeyeye.netlify.app",
   "https://www.visualeyeye.netlify.app",
   "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5174",
   "http://139.59.65.108",
   "http://139.59.65.108:3006",
-  "http://139.59.65.108:8086"
+  "http://139.59.65.108:8086",
+  "http://168.144.144.141:3000",
+  "http://168.144.144.141:3001",
+  "http://168.144.144.141:8086",
+  "http://168.144.144.141:8080"
 ];
 
 app.use(cors({
@@ -68,7 +74,7 @@ app.use(compression({
   },
 }));
 app.use(morgan('combined'));
-app.use(hpp()); 
+app.use(hpp());
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -109,7 +115,7 @@ async function bootstrap() {
     });
 
     server.keepAliveTimeout = 65000;
-    server.headersTimeout   = 66000;
+    server.headersTimeout = 66000;
 
     socketManager.init(server);
 
@@ -130,7 +136,7 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
-process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 process.on('unhandledRejection', (reason) => {
