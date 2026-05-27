@@ -16,7 +16,7 @@ const config = {
   },
 
   mongodb: {
-    uri: process.env.MONGODB_URL || 'mongodb://localhost:27017/wp-system',
+    uri: process.env.MONGODB_URL,
   },
 
   auth: {
