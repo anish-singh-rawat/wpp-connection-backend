@@ -19,6 +19,9 @@ const socketManager = require('./services/socketManager');
 const app = express();
 
 const allowedOrigins = [
+  "https://digiwppconnect-frontend.digibysr.in",
+  "https://www.digiwppconnect-frontend.digibysr.in",
+  "https://digiwppconnect-backend.digibysr.in",
   "https://visualeye.digibysr.in",
   "https://www.visualeye.digibysr.in",
   "http://visualeye.digibysr.in",
@@ -61,7 +64,13 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws://localhost:8086", "wss://localhost:8086", "http://localhost:8086", "ws://139.59.65.108:8086", "wss://139.59.65.108:8086"],
+      connectSrc: [
+        "'self'",
+        "ws://localhost:8086", "wss://localhost:8086", "http://localhost:8086",
+        "ws://139.59.65.108:8086", "wss://139.59.65.108:8086",
+        "https://digiwppconnect-backend.digibysr.in",
+        "wss://digiwppconnect-backend.digibysr.in",
+      ],
     },
   },
 }));
