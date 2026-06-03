@@ -51,7 +51,11 @@ class WhatsAppClient {
     
     const puppeteerOptions = {
       ...config.whatsapp.puppeteerOptions,
-      args: [...(config.whatsapp.puppeteerOptions.args || [])],
+      args: [
+        ...(config.whatsapp.puppeteerOptions.args || []),
+        '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.178 Safari/537.36',
+        '--lang=en-US,en;q=0.9',
+      ],
       userDataDir,
     };
 
@@ -63,6 +67,9 @@ class WhatsAppClient {
       useChrome:        config.whatsapp.useChrome,
       logQR:            config.whatsapp.logQR,
       puppeteerOptions,
+      browserArgs: [
+        '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.178 Safari/537.36',
+      ],
 
       catchQR: (base64Qr, _asciiQR, attempts) => {
         this.latestQR   = base64Qr;

@@ -26,9 +26,9 @@ const config = {
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
     sessionPath: process.env.SESSION_PATH || './sessions',
-    headless: true,
+    headless: 'new',   // 'new' headless mode — harder to detect than true
     autoClose: 0,
-    useChrome: false,
+    useChrome: true,   // use installed Chrome, not bundled Chromium
     logQR: false,
     puppeteerOptions: {
       executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -52,6 +52,12 @@ const config = {
         '--window-size=1280,720',
         '--disable-web-security',
         '--disable-features=IsolateOrigins,site-per-process',
+        // Anti-detection flags
+        '--disable-blink-features=AutomationControlled',
+        '--exclude-switches=enable-automation',
+        '--disable-infobars',
+        '--ignore-certificate-errors',
+        '--allow-running-insecure-content',
       ],
     },
   },
