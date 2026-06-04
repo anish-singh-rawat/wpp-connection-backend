@@ -39,6 +39,12 @@ class WhatsAppClient {
 
     const userDataDir = path.join(this.sessionFolder, this.sessionName);
 
+    try {
+      const { execSync } = require('child_process');
+      execSync(`pkill -9 -f "${userDataDir}" 2>/dev/null || true`, { stdio: 'ignore' });
+      await new Promise(r => setTimeout(r, 500)); 
+    } catch (_) {}
+
     for (const lockFile of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
       try {
         const lockPath = path.join(userDataDir, lockFile);
@@ -63,9 +69,10 @@ class WhatsAppClient {
       session:          this.sessionName,
       folderNameToken:  this.sessionFolder,
       headless:         config.whatsapp.headless,
-      autoClose:        config.whatsapp.autoClose,
+      autoClose:        false,     
       useChrome:        config.whatsapp.useChrome,
       logQR:            config.whatsapp.logQR,
+      disableWelcome:   true,
       puppeteerOptions,
       browserArgs: [
         '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.178 Safari/537.36',
@@ -85,25 +92,48 @@ class WhatsAppClient {
       statusFind: (statusSession) => {
         logger.info(`[WhatsApp:${this.sessionName}] Status: ${statusSession}`);
 
-        if (statusSession === 'inChat' || statusSession === 'isLogged') {
-          if (!this.qrWasShown) {
-            logger.info(`[WhatsApp:${this.sessionName}] Ignoring premature inChat — QR not yet shown`);
-            return;
-          }
-          this.latestQR = null;
-          this.status   = 'connected';
-          this.isReady  = true;
-          try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
+        if (statusSession === 'qrReadSuccess') {
+          logger.info(`[WhatsApp:${this.sessionName}] QR scanned — waiting for full connection...`);
+          this.status = 'connecting';
+          try { getNotifiers().notifyStatusForSession(this.sessionName, 'connecting'); } catch (_) {}
+          return;
         }
+
+        if (statusSession === 'inChat' || statusSession === 'isLogged') {
+          this.latestQR   = null;
+          this.status     = 'connected';
+          this.isReady    = true;
+          this.qrWasShown = true;
+          try { getNotifiers().notifyConnectedForSession(this.sessionName); } catch (_) {}
+          return;
+        }
+
         if (statusSession === 'notLogged') {
           this.status = 'qr_pending';
+          return;
         }
+
+        if (statusSession === 'autocloseCalled') {
+          logger.warn(`[WhatsApp:${this.sessionName}] autoClose triggered — restarting session...`);
+          this.latestQR = null;
+          this.isReady  = false;
+          this.status   = 'restarting';
+          try {
+            if (!this.destroyed) {
+              require('../services/sessionManager').startSession(this.sessionName);
+            }
+          } catch (_) {}
+          return;
+        }
+
         if (statusSession === 'desconnectedMobile' || statusSession === 'disconnectedMobile') {
           this.latestQR = null;
           this.isReady  = false;
           this.status   = 'qr_pending';
           try { getNotifiers().notifyStatusForSession(this.sessionName, 'qr_pending'); } catch (_) {}
+          return;
         }
+
         if (statusSession === 'browserClose') {
           this.status  = 'disconnected';
           this.isReady = false;
