@@ -39,12 +39,6 @@ class WhatsAppClient {
 
     const userDataDir = path.join(this.sessionFolder, this.sessionName);
 
-    try {
-      const { execSync } = require('child_process');
-      execSync(`pkill -9 -f "${userDataDir}" 2>/dev/null || true`, { stdio: 'ignore' });
-      await new Promise(r => setTimeout(r, 500)); 
-    } catch (_) {}
-
     for (const lockFile of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
       try {
         const lockPath = path.join(userDataDir, lockFile);
