@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 
 
 async function sendMessage(req, res) {
-  const { number, message } = req.body;
+  const { number, message, link } = req.body;
   const { sessionName } = req;
 
   if (!isNonEmptyString(number)) {
@@ -17,8 +17,10 @@ async function sendMessage(req, res) {
     return res.status(400).json({ success: false, error: '"message" is required.' });
   }
 
+  const fullMessage = link && link.trim() ? `${message.trim()}\n\n${link.trim()}` : message.trim();
+
   try {
-    const result = await sendSingle(number.trim(), message.trim(), sessionName);
+    const result = await sendSingle(number.trim(), fullMessage, sessionName);
     return res.json({ success: true, result });
   } catch (err) {
     logger.error(`[Controller] sendMessage error: ${err.message}`);
@@ -28,7 +30,7 @@ async function sendMessage(req, res) {
 
 
 async function bulkSendMessage(req, res) {
-  const { numbers, message } = req.body;
+  const { numbers, message, link } = req.body;
   const { sessionName } = req;
 
   if (!isNonEmptyArray(numbers)) {
@@ -43,7 +45,9 @@ async function bulkSendMessage(req, res) {
     return res.status(400).json({ success: false, error: 'No valid numbers provided.' });
   }
 
-  const jobs = await enqueueBulk(sanitised, message.trim(), sessionName);
+  const fullMessage = link && link.trim() ? `${message.trim()}\n\n${link.trim()}` : message.trim();
+
+  const jobs = await enqueueBulk(sanitised, fullMessage, sessionName);
 
   return res.json({
     success:    true,
@@ -61,6 +65,7 @@ async function bulkSendCsv(req, res) {
   }
 
   const fallbackMessage = isNonEmptyString(req.body.message) ? req.body.message.trim() : null;
+  const link = isNonEmptyString(req.body.link) ? req.body.link.trim() : null;
   const { sessionName } = req;
 
   let recipients;
@@ -83,7 +88,14 @@ async function bulkSendCsv(req, res) {
     });
   }
 
-  const jobs = await enqueueBulkRecipients(recipients, fallbackMessage, sessionName);
+  const fullFallbackMessage = fallbackMessage && link ? `${fallbackMessage}\n\n${link}` : fallbackMessage;
+
+  const recipientsWithLink = link ? recipients.map((r) => ({
+        ...r,
+        message: r.message ? `${r.message}\n\n${link}` : undefined,
+      })) : recipients;
+
+  const jobs = await enqueueBulkRecipients(recipientsWithLink, fullFallbackMessage, sessionName);
 
   return res.json({
     success:    true,
