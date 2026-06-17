@@ -1,9 +1,91 @@
 'use strict';
 
-const { sendSingle, enqueueBulk, enqueueBulkRecipients, getQueueStatus, getJobById } = require('../services/messagingService');
+const { sendSingle, sendSingleMedia, enqueueBulk, enqueueBulkMedia, enqueueBulkRecipients, getQueueStatus, getJobById } = require('../services/messagingService');
 const { parseCsvNumbers, parseCsvRecipients } = require('../utils/csvParser');
 const { isNonEmptyString, isNonEmptyArray } = require('../utils/helpers');
 const logger = require('../utils/logger');
+
+
+async function sendMediaMessage(req, res) {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'Media file required (field: "media").' });
+  }
+
+  const { number, message, link } = req.body;
+  const { sessionName } = req;
+
+  if (!isNonEmptyString(number)) {
+    return res.status(400).json({ success: false, error: '"number" is required.' });
+  }
+
+  // Build caption: message + optional link
+  const captionParts = [];
+  if (message && message.trim()) captionParts.push(message.trim());
+  if (link && link.trim())       captionParts.push(link.trim());
+  const caption = captionParts.join('\n\n');
+
+  try {
+    const result = await sendSingleMedia(
+      number.trim(),
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname,
+      caption,
+      sessionName
+    );
+    return res.json({ success: true, result });
+  } catch (err) {
+    logger.error(`[Controller] sendMediaMessage error: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+
+async function bulkSendMediaMessage(req, res) {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'Media file required (field: "media").' });
+  }
+
+  const { numbers: numbersRaw, message, link } = req.body;
+  const { sessionName } = req;
+
+  let numbers;
+  try {
+    numbers = typeof numbersRaw === 'string' ? JSON.parse(numbersRaw) : numbersRaw;
+  } catch {
+    return res.status(400).json({ success: false, error: '"numbers" must be a JSON array.' });
+  }
+
+  if (!isNonEmptyArray(numbers)) {
+    return res.status(400).json({ success: false, error: '"numbers" must be a non-empty array.' });
+  }
+
+  const sanitised = numbers.map((n) => String(n).trim()).filter((n) => n.length > 0);
+  if (sanitised.length === 0) {
+    return res.status(400).json({ success: false, error: 'No valid numbers provided.' });
+  }
+
+  const captionParts = [];
+  if (message && message.trim()) captionParts.push(message.trim());
+  if (link && link.trim())       captionParts.push(link.trim());
+  const caption = captionParts.join('\n\n');
+
+  const jobs = await enqueueBulkMedia(
+    sanitised,
+    req.file.buffer,
+    req.file.mimetype,
+    req.file.originalname,
+    caption,
+    sessionName
+  );
+
+  return res.json({
+    success: true,
+    session: sessionName,
+    queued:  jobs.filter((j) => j.status === 'queued').length,
+    jobs,
+  });
+}
 
 
 async function sendMessage(req, res) {
@@ -125,4 +207,4 @@ async function getQueueJob(req, res) {
   return res.json({ success: true, job });
 }
 
-module.exports = { sendMessage, bulkSendMessage, bulkSendCsv, getQueue, getQueueJob };
+module.exports = { sendMessage, sendMediaMessage, bulkSendMessage, bulkSendMediaMessage, bulkSendCsv, getQueue, getQueueJob };

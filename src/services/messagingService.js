@@ -16,6 +16,17 @@ async function sendSingle(number, message, sessionName) {
   return { number, status: 'sent' };
 }
 
+async function sendSingleMedia(number, fileBuffer, mimeType, filename, caption, sessionName) {
+  const session = getSession(sessionName);
+  const chatId = toChatId(number);
+
+  logger.info(`[Messaging] Sending media (${mimeType}) to ${number}`);
+  await session.sendMedia(chatId, fileBuffer, mimeType, filename, caption);
+  logger.info(`[Messaging] ✓ Media sent to ${number}`);
+
+  return { number, status: 'sent' };
+}
+
 async function enqueueBulk(numbers, message, sessionName) {
   logger.info(`[Messaging] Enqueueing ${numbers.length} messages`);
   return queue.enqueue(numbers, message, sessionName);
@@ -26,6 +37,11 @@ async function enqueueBulkRecipients(recipients, fallbackMessage, sessionName) {
   return queue.enqueueRecipients(recipients, fallbackMessage, sessionName);
 }
 
+async function enqueueBulkMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName) {
+  logger.info(`[Messaging] Enqueueing ${numbers.length} media messages`);
+  return queue.enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName);
+}
+
 async function getQueueStatus(filter, sessionName) {
   return queue.getJobs(filter, sessionName);
 }
@@ -34,4 +50,12 @@ async function getJobById(jobId) {
   return queue.getJob(jobId);
 }
 
-module.exports = { sendSingle, enqueueBulk, enqueueBulkRecipients, getQueueStatus, getJobById };
+module.exports = {
+  sendSingle,
+  sendSingleMedia,
+  enqueueBulk,
+  enqueueBulkMedia,
+  enqueueBulkRecipients,
+  getQueueStatus,
+  getJobById,
+};

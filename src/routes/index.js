@@ -20,7 +20,9 @@ const {
 
 const {
   sendMessage,
+  sendMediaMessage,
   bulkSendMessage,
+  bulkSendMediaMessage,
   bulkSendCsv,
   getQueue,
   getQueueJob,
@@ -62,6 +64,30 @@ const upload = multer({
   },
 });
 
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 16 * 1024 * 1024 },  // 16MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      // Images
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      // Videos
+      'video/mp4', 'video/3gpp', 'video/quicktime',
+      // Documents
+      'application/pdf',
+      'text/csv', 'application/csv', 'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+    ];
+    // Also allow by extension for CSV (some browsers send wrong mime)
+    const ext = file.originalname.split('.').pop().toLowerCase();
+    if (allowed.includes(file.mimetype) || ext === 'csv' || ext === 'pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Unsupported file type. Allowed: Images, Videos, PDF, CSV/Excel.'));
+    }
+  },
+});
+
 router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
 );
@@ -75,9 +101,11 @@ router.get('/devices/:token/qrcode/events', resolveDevice, qrEventStream);
 router.get('/devices/:token/qrcode/status', resolveDevice, getQRStatus);
 router.get('/devices/:token/qrcode/image',  resolveDevice, getQRImage);
 
-router.post('/devices/:token/send',           resolveDevice, sendMessage);
-router.post('/devices/:token/bulk-send',      resolveDevice, bulkSendMessage);
-router.post('/devices/:token/bulk-send/csv',  resolveDevice, upload.single('file'), bulkSendCsv);
+router.post('/devices/:token/send',                resolveDevice, sendMessage);
+router.post('/devices/:token/send-media',          resolveDevice, mediaUpload.single('media'), sendMediaMessage);
+router.post('/devices/:token/bulk-send',           resolveDevice, bulkSendMessage);
+router.post('/devices/:token/bulk-send-media',     resolveDevice, mediaUpload.single('media'), bulkSendMediaMessage);
+router.post('/devices/:token/bulk-send/csv',       resolveDevice, upload.single('file'), bulkSendCsv);
 router.get ('/devices/:token/queue',          resolveDevice, getQueue);
 router.get ('/devices/:token/queue/:jobId',   resolveDevice, getQueueJob);
 router.get ('/devices/:token/messages',       resolveDevice, getIncomingMessages);

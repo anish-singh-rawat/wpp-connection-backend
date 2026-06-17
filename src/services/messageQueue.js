@@ -100,10 +100,43 @@ class MessageQueue {
     return results;
   }
 
-  async getJob(jobId) {
-    const job = await MessageJob.findById(jobId).lean();
-    return job ? this._toPlain(job) : null;
+  async enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName) {
+    const session  = sessionName || config.whatsapp.sessionName;
+    const mediaData = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+    const results  = [];
+
+    for (const number of numbers) {
+      const chatId   = toChatId(number);
+      const dedupKey = `${session}:${chatId}:media:${filename}:${Date.now()}`;
+
+      const jobId = uuidv4();
+      await MessageJob.create({
+        _id:         jobId,
+        dedupKey,
+        sessionName: session,
+        number,
+        chatId,
+        message:     caption || '',
+        mediaData,
+        mimeType,
+        filename,
+        status:      'pending',
+        enqueuedAt:  new Date(),
+      });
+
+      this._pendingIds.push(jobId);
+      results.push({ number, jobId, status: 'queued' });
+    }
+
+    this._process();
+    if (results.length > 0) {
+      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+    }
+    return results;
   }
+  //   const job = await MessageJob.findById(jobId).lean();
+  //   return job ? this._toPlain(job) : null;
+  // }
 
   async getJobs(filter = 'all', sessionName = null) {
     const query = {};
@@ -174,7 +207,14 @@ class MessageQueue {
 
       try {
         const session = getSession(job.sessionName);
-        await session.sendText(job.chatId, job.message);
+
+        if (job.mediaData && job.mimeType) {
+          // Media job — send file with caption
+          const buffer = Buffer.from(job.mediaData.split(',')[1], 'base64');
+          await session.sendMedia(job.chatId, buffer, job.mimeType, job.filename, job.message || '');
+        } else {
+          await session.sendText(job.chatId, job.message);
+        }
 
         job.status      = 'sent';
         job.processedAt = new Date();

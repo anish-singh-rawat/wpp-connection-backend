@@ -199,6 +199,27 @@ class WhatsAppClient {
     }
   }
 
+  async sendMedia(chatId, fileBuffer, mimeType, filename, caption) {
+    this._assertReady();
+
+    // Convert buffer to base64 data URI
+    const base64 = fileBuffer.toString('base64');
+    const dataUri = `data:${mimeType};base64,${base64}`;
+
+    try {
+      return await this.client.sendFile(chatId, dataUri, filename, caption || '');
+    } catch (err) {
+      if (err && err.message && isPostSendLookupError(err.message)) {
+        logger.warn(
+          `[WhatsApp:${this.sessionName}] sendMedia to ${chatId} — ` +
+          `delivered but post-send lookup failed (safe to ignore): ${err.message}`
+        );
+        return { status: 'sent', chatId, note: 'delivered_with_lookup_warning' };
+      }
+      throw err;
+    }
+  }
+
   async close() {
     this.destroyed = true;
     if (this.client) {
