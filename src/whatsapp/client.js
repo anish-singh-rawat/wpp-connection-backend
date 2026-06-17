@@ -202,11 +202,21 @@ class WhatsAppClient {
   async sendMedia(chatId, fileBuffer, mimeType, filename, caption) {
     this._assertReady();
 
-    // Convert buffer to base64 data URI
-    const base64 = fileBuffer.toString('base64');
-    const dataUri = `data:${mimeType};base64,${base64}`;
+    const base64  = fileBuffer.toString('base64');
+    const isGif   = mimeType === 'image/gif' || filename.toLowerCase().endsWith('.gif');
 
     try {
+      if (isGif) {
+        const gifDataUri = `data:image/gif;base64,${base64}`;
+        return await this.client.sendGifFromBase64(
+          chatId,
+          gifDataUri,
+          filename,
+          caption || ''
+        );
+      }
+
+      const dataUri = `data:${mimeType};base64,${base64}`;
       return await this.client.sendFile(chatId, dataUri, filename, caption || '');
     } catch (err) {
       if (err && err.message && isPostSendLookupError(err.message)) {
