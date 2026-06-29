@@ -21,6 +21,7 @@ const app = express();
 const allowedOrigins = [
   "https://digiwppconnect-frontend.digibysr.in",
   "https://www.digiwppconnect-frontend.digibysr.in",
+  "https://digiwppconnect-frontend.digibysr.in/",
   "https://digiwppconnect-backend.digibysr.in",
   "https://visualeye.digibysr.in",
   "https://www.visualeye.digibysr.in",
@@ -88,8 +89,8 @@ app.use(hpp());
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 app.use((req, _res, next) => {
   logger.info(`[HTTP] ${req.method} ${req.path}`);
