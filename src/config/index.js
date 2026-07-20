@@ -25,7 +25,6 @@ const config = {
 
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
-    // Session auth credentials stored as JSON files (no Chromium required)
     sessionPath: process.env.SESSION_PATH || './sessions',
   },
 

@@ -9,7 +9,7 @@ const messageJobSchema = new mongoose.Schema(
     sessionName: { type: String, required: true, index: true },
     number:      { type: String, required: true },
     chatId:      { type: String, required: true },
-    message:     { type: String, default: null },  // optional for media-only jobs
+    message:     { type: String, default: null },  
     // media fields
     mediaData:   { type: String, default: null },   // base64 data URI
     mimeType:    { type: String, default: null },

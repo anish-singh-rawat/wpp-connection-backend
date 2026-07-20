@@ -5,18 +5,15 @@ const { listDevices } = require('./deviceRegistry');
 const logger = require('../utils/logger');
 
 const retryTimers = new Map();
-// Tracks sessions whose init() is currently in-flight (not yet open/failed)
 const launching   = new Set();
 
-// ── resetSession ─────────────────────────────────────────────────────────────
 function resetSession(sessionName) {
   const fresh = new WhatsAppClient(sessionName);
   sessions.set(sessionName, fresh);
   return fresh;
 }
 
-// ── _onSessionReady ──────────────────────────────────────────────────────────
-// Called by client.js when connection === 'open'
+
 function _onSessionReady(sessionName) {
   launching.delete(sessionName);
   if (retryTimers.has(sessionName)) {
@@ -28,9 +25,7 @@ function _onSessionReady(sessionName) {
   } catch (_) {}
 }
 
-// ── startSession ─────────────────────────────────────────────────────────────
-// Full cold-start: creates a new WhatsAppClient, reads auth from disk,
-// opens a WebSocket. Used on server boot and after loggedOut (401).
+
 async function startSession(sessionName, attempt = 1) {
   if (launching.has(sessionName)) {
     logger.info(`[SessionMgr] "${sessionName}" already launching — skip.`);
@@ -73,15 +68,11 @@ async function startSession(sessionName, attempt = 1) {
     });
 }
 
-// ── restartSession ───────────────────────────────────────────────────────────
-// Called by client.js for 401 loggedOut or other fatal disconnects.
-// Clears the launching lock first so startSession is not blocked.
 function restartSession(sessionName) {
-  launching.delete(sessionName);          // ← unblock so startSession can run
+  launching.delete(sessionName);       
   startSession(sessionName);
 }
 
-// ── bootAllDevices ───────────────────────────────────────────────────────────
 async function bootAllDevices() {
   const devices = await listDevices();
   if (devices.length === 0) {
@@ -106,7 +97,6 @@ function startNewSession(sessionName) {
   startSession(sessionName);
 }
 
-// ── stopSession ──────────────────────────────────────────────────────────────
 async function stopSession(sessionName) {
   launching.delete(sessionName);
   if (retryTimers.has(sessionName)) {
@@ -119,7 +109,6 @@ async function stopSession(sessionName) {
   }
 }
 
-// ── shutdownAll ──────────────────────────────────────────────────────────────
 async function shutdownAll() {
   const { sessions: all } = require('../whatsapp/client');
   for (const [name, session] of all.entries()) {

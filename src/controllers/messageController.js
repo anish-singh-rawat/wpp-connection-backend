@@ -18,7 +18,6 @@ async function sendMediaMessage(req, res) {
     return res.status(400).json({ success: false, error: '"number" is required.' });
   }
 
-  // Build caption: message + optional link
   const captionParts = [];
   if (message && message.trim()) captionParts.push(message.trim());
   if (link && link.trim())       captionParts.push(link.trim());

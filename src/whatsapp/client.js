@@ -15,26 +15,15 @@ const {
 const config = require('../config');
 const logger = require('../utils/logger');
 
-// ---------------------------------------------------------------------------
-// Baileys internal logger — fully suppressed
-// ---------------------------------------------------------------------------
+
 const P = require('pino');
 const baileysLogger = P({ level: 'silent' });
 
-// ---------------------------------------------------------------------------
-// JID normalisation
-// Baileys : <number>@s.whatsapp.net
-// Our API : <number>@c.us   (kept unchanged for full backward-compat)
-// ---------------------------------------------------------------------------
 function toJid(chatId) {
   if (!chatId) return chatId;
   return chatId.replace('@c.us', '@s.whatsapp.net');
 }
 
-// ---------------------------------------------------------------------------
-// WhatsAppClient
-// Drop-in replacement for WPPConnect version — same public API & properties.
-// ---------------------------------------------------------------------------
 class WhatsAppClient {
   constructor(sessionName) {
     this.sessionName     = sessionName;
@@ -45,7 +34,6 @@ class WhatsAppClient {
     this.status          = 'initialising';
     this.destroyed       = false;
 
-    // Cached auth state so we can reconnect without re-reading files
     this._state      = null;
     this._saveCreds  = null;
     this._version    = null;
@@ -53,7 +41,6 @@ class WhatsAppClient {
     this.authDir = path.resolve(config.whatsapp.sessionPath, this.sessionName);
   }
 
-  // ── init ───────────────────────────────────────────────────────────────
   async init() {
     logger.info(`[WhatsApp:${this.sessionName}] Initialising (Baileys)...`);
     this.status = 'launching';
@@ -64,7 +51,6 @@ class WhatsAppClient {
     this._state     = state;
     this._saveCreds = saveCreds;
 
-    // Fetch latest WA Web version once — reuse on reconnects
     if (!this._version) {
       try {
         const { version } = await fetchLatestBaileysVersion();
@@ -79,13 +65,9 @@ class WhatsAppClient {
     this._openSocket();
   }
 
-  // ── _openSocket ─────────────────────────────────────────────────────────
-  // Creates a fresh Baileys socket and attaches all event handlers.
-  // Called on first connect AND on every internal reconnect (515, etc.)
   _openSocket() {
     if (this.destroyed) return;
 
-    // Tear down old socket cleanly — without logout (logout = deauth)
     if (this.sock) {
       try {
         this.sock.ev.removeAllListeners();
@@ -98,7 +80,6 @@ class WhatsAppClient {
       version:                      this._version,
       logger:                       baileysLogger,
       auth:                         this._state,
-      // Generic browser string — widely compatible, avoids fingerprint bans
       browser:                      ['WhatsApp', 'Chrome', '3.0'],
       printQRInTerminal:            false,
       keepAliveIntervalMs:          25_000,
@@ -107,20 +88,16 @@ class WhatsAppClient {
       generateHighQualityLinkPreview: false,
       syncFullHistory:              false,
       fireInitQueries:              true,
-      // Baileys built-in retry on message failure
       maxMsgRetryCount:             3,
     });
 
     this.sock = sock;
 
-    // Persist credentials whenever they update
     sock.ev.on('creds.update', this._saveCreds);
 
-    // ── Connection lifecycle ─────────────────────────────────────────
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
-      // ── QR available ──────────────────────────────────────────────
       if (qr) {
         try {
           const base64Png   = await QRCode.toDataURL(qr, { scale: 8 });
@@ -137,7 +114,6 @@ class WhatsAppClient {
         }
       }
 
-      // ── Socket connecting ──────────────────────────────────────────
       if (connection === 'connecting') {
         this.status = 'connecting';
         logger.info(`[WhatsApp:${this.sessionName}] Connecting...`);
@@ -147,7 +123,6 @@ class WhatsAppClient {
         } catch (_) {}
       }
 
-      // ── Socket open / authenticated ────────────────────────────────
       if (connection === 'open') {
         this.isReady  = true;
         this.latestQR = null;
@@ -162,7 +137,6 @@ class WhatsAppClient {
         } catch (_) {}
       }
 
-      // ── Socket closed ──────────────────────────────────────────────
       if (connection === 'close') {
         this.isReady  = false;
         this.latestQR = null;
@@ -178,7 +152,6 @@ class WhatsAppClient {
           return;
         }
 
-        // ── 401 loggedOut — need fresh QR ─────────────────────────
         if (statusCode === DisconnectReason.loggedOut) {
           logger.warn(`[WhatsApp:${this.sessionName}] Logged out — clearing auth & restarting.`);
           this.status = 'qr_pending';
@@ -187,25 +160,19 @@ class WhatsAppClient {
             require('../controllers/qrController')
               .notifyStatusForSession(this.sessionName, 'qr_pending');
           } catch (_) {}
-          // Full restart via sessionManager so auth is re-read from disk
           try {
             require('../services/sessionManager').restartSession(this.sessionName);
           } catch (_) {}
           return;
         }
 
-        // ── 515 restartRequired — Baileys internal restart ─────────
-        // DO NOT go through sessionManager — just open a new socket directly.
-        // Auth state is still valid; we just need a new WebSocket connection.
         if (statusCode === DisconnectReason.restartRequired) {
           logger.info(`[WhatsApp:${this.sessionName}] Restart required — reopening socket...`);
           this.status = 'connecting';
-          // Small delay before reconnect to avoid hammering WA servers
           setTimeout(() => this._openSocket(), 1_500);
           return;
         }
 
-        // ── All other codes — reconnect with backoff ───────────────
         this.status = 'retrying';
         try {
           require('../controllers/qrController')
@@ -218,7 +185,6 @@ class WhatsAppClient {
       }
     });
 
-    // ── Incoming messages ────────────────────────────────────────────
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
       for (const msg of messages) {
@@ -253,7 +219,6 @@ class WhatsAppClient {
     });
   }
 
-  // ── sendText ─────────────────────────────────────────────────────────────
   async sendText(chatId, message) {
     this._assertReady();
     const jid = toJid(chatId);
@@ -265,7 +230,6 @@ class WhatsAppClient {
     }
   }
 
-  // ── sendMedia ─────────────────────────────────────────────────────────────
   async sendMedia(chatId, fileBuffer, mimeType, filename, caption) {
     this._assertReady();
     const jid     = toJid(chatId);
@@ -278,13 +242,10 @@ class WhatsAppClient {
     }
   }
 
-  // ── onMessage ─────────────────────────────────────────────────────────────
   onMessage(handler) {
     this.webhookHandlers.push(handler);
   }
 
-  // ── close ─────────────────────────────────────────────────────────────────
-  // Graceful shutdown — does NOT call logout() so credentials remain valid
   async close() {
     this.destroyed = true;
     this.isReady   = false;
@@ -292,14 +253,13 @@ class WhatsAppClient {
     if (this.sock) {
       try {
         this.sock.ev.removeAllListeners();
-        this.sock.end(undefined);   // close WebSocket only — no deauth
+        this.sock.end(undefined);  
       } catch (_) {}
       this.sock = null;
     }
     logger.info(`[WhatsApp:${this.sessionName}] Closed.`);
   }
 
-  // ── _buildMediaMessage ────────────────────────────────────────────────────
   _buildMediaMessage(buffer, mimeType, filename, caption) {
     if (mimeType === 'image/gif') {
       return { video: buffer, gifPlayback: true, caption, mimetype: mimeType, fileName: filename };
@@ -313,11 +273,9 @@ class WhatsAppClient {
     if (mimeType.startsWith('audio/')) {
       return { audio: buffer, mimetype: mimeType, ptt: false };
     }
-    // PDF, CSV, Excel, etc.
     return { document: buffer, mimetype: mimeType, fileName: filename, caption };
   }
 
-  // ── _extractBody ──────────────────────────────────────────────────────────
   _extractBody(msg, contentType) {
     if (!msg.message) return '';
     const content = msg.message[contentType];
@@ -328,7 +286,6 @@ class WhatsAppClient {
     return '';
   }
 
-  // ── _clearAuth ────────────────────────────────────────────────────────────
   _clearAuth() {
     try {
       if (fs.existsSync(this.authDir)) {
@@ -340,7 +297,6 @@ class WhatsAppClient {
     }
   }
 
-  // ── _assertReady ──────────────────────────────────────────────────────────
   _assertReady() {
     if (!this.isReady || !this.sock) {
       throw new Error(
@@ -350,9 +306,7 @@ class WhatsAppClient {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Session registry
-// ---------------------------------------------------------------------------
+
 const sessions = new Map();
 
 function getSession(name) {

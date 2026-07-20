@@ -12,7 +12,6 @@ class MessageQueue {
   constructor() {
     this._pendingIds  = [];
     this._processing  = false;
-    // Per-session processing flags so sessions don't block each other
     this._sessionProcessing = new Map();
   }
 
@@ -136,9 +135,6 @@ class MessageQueue {
     }
     return results;
   }
-  //   const job = await MessageJob.findById(jobId).lean();
-  //   return job ? this._toPlain(job) : null;
-  // }
 
   async getJobs(filter = 'all', sessionName = null) {
     const query = {};
@@ -164,7 +160,6 @@ class MessageQueue {
     if (pendingJobs.length > 0) {
       logger.info(`[Queue] Recovering ${pendingJobs.length} pending job(s) from MongoDB...`);
 
-      // Group by session so each session's processor kicks off independently
       const bySession = {};
       for (const j of pendingJobs) {
         this._pendingIds.push(j._id);
@@ -184,20 +179,15 @@ class MessageQueue {
     return !!existing;
   }
 
-  // Per-session processor — each session runs its own independent loop
-  // so device-A sending doesn't block device-B
   async _processSession(sessionName) {
     if (this._sessionProcessing.get(sessionName)) return;
     this._sessionProcessing.set(sessionName, true);
 
     while (true) {
-      // Pick next pending job for THIS session
       const idx = this._pendingIds.findIndex(async (id) => {
-        // We need to check session — use a sync lookup from DB in _process loop
-        return true; // filtering happens below via DB query
+        return true;
       });
 
-      // Get next pending job for this session from DB directly
       const job = await MessageJob.findOne({
         sessionName,
         status: 'pending',
@@ -205,24 +195,20 @@ class MessageQueue {
 
       if (!job) break;
 
-      // Remove from pendingIds if present
       const pos = this._pendingIds.indexOf(String(job._id));
       if (pos !== -1) this._pendingIds.splice(pos, 1);
 
       await this._sendWithRetry(job);
 
-      // Check if more jobs remain for this session
       const remaining = await MessageJob.countDocuments({ sessionName, status: 'pending' });
       if (remaining === 0) break;
 
-      // Anti-ban delay between messages
       await randomDelay();
     }
 
     this._sessionProcessing.set(sessionName, false);
   }
 
-  // Legacy single-queue process — kept for backward compat with recoverPendingJobs
   async _process() {
     if (this._processing) return;
     this._processing = true;
@@ -253,7 +239,6 @@ class MessageQueue {
         const session = getSession(job.sessionName);
 
         if (job.mediaData && job.mimeType) {
-          // Media job — send file with caption
           const buffer = Buffer.from(job.mediaData.split(',')[1], 'base64');
           await session.sendMedia(job.chatId, buffer, job.mimeType, job.filename, job.message || '');
         } else {
