@@ -7,7 +7,7 @@ module.exports = {
       name: 'wpp-connection-backend',
       script: 'src/server.js',
       cwd: '/root/wpp-connection-backend',   // absolute path — works from anywhere
-      instances: 1,           // MUST be 1 — WPPConnect session is not cluster-safe
+      instances: 1,           // MUST be 1 — Baileys sessions are not cluster-safe
       exec_mode: 'fork',
       autorestart: true,
       watch: false,

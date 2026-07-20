@@ -10,8 +10,10 @@ const logger = require('../utils/logger');
 
 class MessageQueue {
   constructor() {
-    this._pendingIds  = []; 
+    this._pendingIds  = [];
     this._processing  = false;
+    // Per-session processing flags so sessions don't block each other
+    this._sessionProcessing = new Map();
   }
 
   async enqueue(numbers, message, sessionName) {
@@ -44,7 +46,7 @@ class MessageQueue {
       results.push({ number, jobId, status: 'queued' });
     }
 
-    this._process();
+    this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
       socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
     }
@@ -93,7 +95,7 @@ class MessageQueue {
       results.push({ number, jobId, status: 'queued' });
     }
 
-    this._process();
+    this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
       socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
     }
@@ -128,7 +130,7 @@ class MessageQueue {
       results.push({ number, jobId, status: 'queued' });
     }
 
-    this._process();
+    this._processSession(session);
     if (results.length > 0) {
       socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
     }
@@ -156,15 +158,21 @@ class MessageQueue {
 
     const pendingJobs = await MessageJob.find({ status: 'pending' })
       .sort({ enqueuedAt: 1 })
-      .select('_id')
+      .select('_id sessionName')
       .lean();
 
     if (pendingJobs.length > 0) {
       logger.info(`[Queue] Recovering ${pendingJobs.length} pending job(s) from MongoDB...`);
+
+      // Group by session so each session's processor kicks off independently
+      const bySession = {};
       for (const j of pendingJobs) {
         this._pendingIds.push(j._id);
+        bySession[j.sessionName] = true;
       }
-      this._process();
+      for (const sessionName of Object.keys(bySession)) {
+        this._processSession(sessionName);
+      }
     }
   }
 
@@ -176,6 +184,45 @@ class MessageQueue {
     return !!existing;
   }
 
+  // Per-session processor — each session runs its own independent loop
+  // so device-A sending doesn't block device-B
+  async _processSession(sessionName) {
+    if (this._sessionProcessing.get(sessionName)) return;
+    this._sessionProcessing.set(sessionName, true);
+
+    while (true) {
+      // Pick next pending job for THIS session
+      const idx = this._pendingIds.findIndex(async (id) => {
+        // We need to check session — use a sync lookup from DB in _process loop
+        return true; // filtering happens below via DB query
+      });
+
+      // Get next pending job for this session from DB directly
+      const job = await MessageJob.findOne({
+        sessionName,
+        status: 'pending',
+      }).sort({ enqueuedAt: 1 });
+
+      if (!job) break;
+
+      // Remove from pendingIds if present
+      const pos = this._pendingIds.indexOf(String(job._id));
+      if (pos !== -1) this._pendingIds.splice(pos, 1);
+
+      await this._sendWithRetry(job);
+
+      // Check if more jobs remain for this session
+      const remaining = await MessageJob.countDocuments({ sessionName, status: 'pending' });
+      if (remaining === 0) break;
+
+      // Anti-ban delay between messages
+      await randomDelay();
+    }
+
+    this._sessionProcessing.set(sessionName, false);
+  }
+
+  // Legacy single-queue process — kept for backward compat with recoverPendingJobs
   async _process() {
     if (this._processing) return;
     this._processing = true;
@@ -183,11 +230,8 @@ class MessageQueue {
     while (this._pendingIds.length > 0) {
       const jobId = this._pendingIds.shift();
       const job   = await MessageJob.findById(jobId);
-
       if (!job || job.status !== 'pending') continue;
-
       await this._sendWithRetry(job);
-
       if (this._pendingIds.length > 0) {
         await randomDelay();
       }

@@ -1,7 +1,7 @@
 {
   "name": "wppconnect-messaging-system",
-  "version": "1.0.0",
-  "description": "Production-ready WhatsApp messaging system using WPPConnect",
+  "version": "2.0.0",
+  "description": "Production-ready WhatsApp messaging system using Baileys (WebSocket, no Chrome)",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -9,7 +9,7 @@
     "prod": "NODE_ENV=production node src/server.js"
   },
   "dependencies": {
-    "@wppconnect-team/wppconnect": "^2.1.0",
+    "@whiskeysockets/baileys": "^6.7.23",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -19,6 +19,7 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
+    "mime-types": "^2.1.35",
     "mongoose": "9.6.2",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
@@ -32,5 +33,10 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "allowScripts": {
+    "@whiskeysockets/baileys@6.7.23": true,
+    "fsevents@2.3.3": true,
+    "protobufjs@7.6.5": true
   }
 }

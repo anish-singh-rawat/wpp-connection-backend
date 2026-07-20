@@ -25,41 +25,8 @@ const config = {
 
   whatsapp: {
     sessionName: process.env.WA_SESSION || 'default-session',
+    // Session auth credentials stored as JSON files (no Chromium required)
     sessionPath: process.env.SESSION_PATH || './sessions',
-    headless: 'new',   // 'new' headless mode — harder to detect than true
-    autoClose: 0,
-    useChrome: true,   // use installed Chrome, not bundled Chromium
-    logQR: false,
-    puppeteerOptions: {
-      executablePath: process.env.CHROMIUM_PATH || undefined,
-      protocolTimeout: 120000,
-      timeout: 120000,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-sync',
-        '--disable-translate',
-        '--hide-scrollbars',
-        '--mute-audio',
-        '--safebrowsing-disable-auto-update',
-        '--window-size=1280,720',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-        // Anti-detection flags
-        '--disable-blink-features=AutomationControlled',
-        '--exclude-switches=enable-automation',
-        '--disable-infobars',
-        '--ignore-certificate-errors',
-        '--allow-running-insecure-content',
-      ],
-    },
   },
 
   messaging: {
