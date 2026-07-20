@@ -21,7 +21,6 @@ const app = express();
 const allowedOrigins = [
   "https://digiwppconnect-frontend.digibysr.in",
   "https://www.digiwppconnect-frontend.digibysr.in",
-  "https://digiwppconnect-frontend.digibysr.in/",
   "https://digiwppconnect-backend.digibysr.in",
   "https://visualeye.digibysr.in",
   "https://www.visualeye.digibysr.in",
@@ -42,20 +41,21 @@ const allowedOrigins = [
   "http://168.144.144.141:8080"
 ];
 
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'));
+    return callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   exposedHeaders: ['x-api-key'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}));
+};
 
-app.options('*', cors());
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 app.use(helmet({
   crossOriginResourcePolicy: false,
@@ -71,6 +71,7 @@ app.use(helmet({
         "ws://139.59.65.108:8086", "wss://139.59.65.108:8086",
         "https://digiwppconnect-backend.digibysr.in",
         "wss://digiwppconnect-backend.digibysr.in",
+        "https://digiwppconnect-frontend.digibysr.in",
       ],
     },
   },
