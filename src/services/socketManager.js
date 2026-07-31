@@ -43,8 +43,20 @@ function init(httpServer) {
       socket.handshake.auth?.apiKey ||
       socket.handshake.headers?.['x-api-key'] ||
       socket.handshake.query?.api_key;
-    if (key === config.auth.apiKey) return next();
-    logger.warn(`[Socket] Rejected connection from ${socket.handshake.address} — bad API key`);
+    if (key && key === config.auth.apiKey) return next();
+
+    const jwt = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (jwt) {
+      try {
+        const { jwtSecret } = config.auth;
+        if (jwtSecret) {
+          require('jsonwebtoken').verify(jwt, jwtSecret);
+          return next();
+        }
+      } catch (_) {}
+    }
+
+    logger.warn(`[Socket] Rejected connection from ${socket.handshake.address} — bad credentials`);
     return next(new Error('Unauthorized'));
   });
 

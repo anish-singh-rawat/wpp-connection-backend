@@ -29,8 +29,9 @@ const config = {
   },
 
   whatsapp: {
-    sessionName: process.env.WA_SESSION || 'default-session',
-    sessionPath: process.env.SESSION_PATH || './sessions',
+    sessionName:    process.env.WA_SESSION    || 'default-session',
+    sessionPath:    process.env.SESSION_PATH  || './sessions',
+    disableInbox:   process.env.DISABLE_INBOX === 'true',
   },
 
   messaging: {

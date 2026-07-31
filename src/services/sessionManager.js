@@ -93,8 +93,11 @@ async function bootAllDevices() {
     }
   } catch (_) {}
 
-  for (const device of devices) {
-    startSession(device.sessionName);
+  for (let i = 0; i < devices.length; i++) {
+    startSession(devices[i].sessionName);
+    if (i < devices.length - 1) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
 }
 

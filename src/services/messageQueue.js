@@ -50,7 +50,7 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.filter(r => r.status === 'queued').length });
     }
     return results;
   }
@@ -102,7 +102,7 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.filter(r => r.status === 'queued').length });
     }
     return results;
   }
@@ -140,7 +140,7 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.length > 0) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.length });
     }
     return results;
   }

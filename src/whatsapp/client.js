@@ -37,6 +37,7 @@ class WhatsAppClient {
     this._state      = null;
     this._saveCreds  = null;
     this._version    = null;
+    this._qrExpireTimer = null;
 
     this.authDir = path.resolve(config.whatsapp.sessionPath, this.sessionName);
   }
@@ -100,10 +101,16 @@ class WhatsAppClient {
 
       if (qr) {
         try {
-          const base64Png   = await QRCode.toDataURL(qr, { scale: 8 });
+          const base64Png   = await QRCode.toDataURL(qr, { scale: 6 });
           this.latestQR     = base64Png;
           this.status       = 'qr_ready';
           this.isReady      = false;
+          if (this._qrExpireTimer) clearTimeout(this._qrExpireTimer);
+          this._qrExpireTimer = setTimeout(() => {
+            if (this.latestQR === base64Png) {
+              this.latestQR = null;
+            }
+          }, 60_000);
           logger.info(`[WhatsApp:${this.sessionName}] QR ready — scan now`);
           try {
             require('../controllers/qrController')
@@ -186,6 +193,8 @@ class WhatsAppClient {
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
+      if (config.whatsapp.disableInbox) return;
+
       for (const msg of messages) {
         if (msg.key.fromMe) continue;
         if (msg.key.remoteJid === 'status@broadcast') continue;
@@ -249,10 +258,15 @@ class WhatsAppClient {
     this.destroyed = true;
     this.isReady   = false;
     this.status    = 'disconnected';
+    if (this._qrExpireTimer) {
+      clearTimeout(this._qrExpireTimer);
+      this._qrExpireTimer = null;
+    }
+    this.latestQR = null;
     if (this.sock) {
       try {
         this.sock.ev.removeAllListeners();
-        this.sock.end(undefined);  
+        this.sock.end(undefined);
       } catch (_) {}
       this.sock = null;
     }

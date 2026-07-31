@@ -63,7 +63,7 @@ const {
   listTokens,
 } = require('../controllers/apiTokenController');
 
-const { authenticateJWT, authenticateApiToken } = require('../middleware/auth');
+const { authenticateJWT, authenticateApiToken, authenticateQR } = require('../middleware/auth');
 const { authorize, onlySuperAdmin, superAdminOrCustomer, allRoles } = require('../middleware/authorize');
 const { customerRateLimit } = require('../middleware/rateLimiter');
 const { logApiRequest }     = require('../middleware/apiLogger');
@@ -164,9 +164,9 @@ router.get   ('/devices',        authenticateJWT, allRoles, listDevicesHandler);
 router.get   ('/devices/:token', authenticateJWT, allRoles, getDeviceHandler);
 router.delete('/devices/:token', authenticateJWT, allRoles, deleteDeviceHandler);
 
-router.get('/devices/:token/qrcode/events', authenticateJWT, resolveDevice, qrEventStream);
-router.get('/devices/:token/qrcode/status', authenticateJWT, resolveDevice, getQRStatus);
-router.get('/devices/:token/qrcode/image',  authenticateJWT, resolveDevice, getQRImage);
+router.get('/devices/:token/qrcode/events', authenticateQR, resolveDevice, qrEventStream);
+router.get('/devices/:token/qrcode/status', authenticateQR, resolveDevice, getQRStatus);
+router.get('/devices/:token/qrcode/image',  authenticateQR, resolveDevice, getQRImage);
 
 router.post(
   '/devices/:token/send',

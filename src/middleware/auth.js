@@ -196,9 +196,53 @@ async function optionalJWT(req, res, next) {
   }
 }
 
+async function authenticateQR(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    let rawToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+    if (!rawToken) {
+      rawToken = req.query.token || null;
+    }
+
+    if (!rawToken) {
+      return res.status(401).json({ success: false, error: 'Unauthorized. Token required.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(rawToken, config.auth.jwtSecret);
+    } catch (err) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token.' });
+    }
+
+    const user = await User.findById(decoded.userId).select('-password -apiTokenHash');
+    if (!user || !user.isActive || user.status !== 'active') {
+      return res.status(401).json({ success: false, error: 'User not found or inactive.' });
+    }
+
+    req.user = {
+      userId: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      parentCustomerId: user.parentCustomerId,
+      createdBy: user.createdBy,
+      isActive: user.isActive,
+      status: user.status,
+    };
+
+    next();
+  } catch (err) {
+    logger.error(`[Auth] QR authentication error: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Authentication failed.' });
+  }
+}
+
 module.exports = {
   authenticateJWT,
   authenticateApiToken,
   authenticate,
   optionalJWT,
+  authenticateQR,
 };
