@@ -18,8 +18,8 @@ dotenv.config({
 });
 
 const SEED_NAME = "Super Admin";
-const SEED_EMAIL = "admin@wpp.local";
-const SEED_PASSWORD = "Admin@123456";
+const SEED_EMAIL = "admin@digibysr.com";
+const SEED_PASSWORD = "WPP@2026@Admin";
 
 const run = async () => {
   try {

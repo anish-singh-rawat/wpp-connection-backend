@@ -145,18 +145,19 @@ router.post  ('/sub-customers/:subCustomerId/activate',     authenticateJWT, sup
 router.post  ('/sub-customers/:subCustomerId/reset-password', authenticateJWT, superAdminOrCustomer,    resetSubCustomerPassword);
 
 
-router.get ('/api-tokens',                         authenticateJWT, onlySuperAdmin,         listTokens);
-router.get ('/api-tokens/:customerId',             authenticateJWT, onlySuperAdmin,         getTokenInfo);
-router.post('/api-tokens/generate',                authenticateJWT, onlySuperAdmin,         generateToken);
-router.post('/api-tokens/:customerId/regenerate',  authenticateJWT, onlySuperAdmin,         regenerateToken);
-router.post('/api-tokens/:customerId/enable',      authenticateJWT, onlySuperAdmin,         enableToken);
-router.post('/api-tokens/:customerId/disable',     authenticateJWT, onlySuperAdmin,         disableToken);
 
-router.get ('/api-tokens/my',           authenticateJWT, authorize(ROLES.CUSTOMER), getTokenInfo);
-router.post('/api-tokens/my/generate',  authenticateJWT, authorize(ROLES.CUSTOMER), generateToken);
-router.post('/api-tokens/my/regenerate',authenticateJWT, authorize(ROLES.CUSTOMER), regenerateToken);
-router.post('/api-tokens/my/enable',    authenticateJWT, authorize(ROLES.CUSTOMER), enableToken);
-router.post('/api-tokens/my/disable',   authenticateJWT, authorize(ROLES.CUSTOMER), disableToken);
+router.get ('/api-tokens/my',            authenticateJWT, authorize(ROLES.CUSTOMER), getTokenInfo);
+router.post('/api-tokens/my/generate',   authenticateJWT, authorize(ROLES.CUSTOMER), generateToken);
+router.post('/api-tokens/my/regenerate', authenticateJWT, authorize(ROLES.CUSTOMER), regenerateToken);
+router.post('/api-tokens/my/enable',     authenticateJWT, authorize(ROLES.CUSTOMER), enableToken);
+router.post('/api-tokens/my/disable',    authenticateJWT, authorize(ROLES.CUSTOMER), disableToken);
+
+router.get ('/api-tokens',                         authenticateJWT, onlySuperAdmin, listTokens);
+router.get ('/api-tokens/:customerId',             authenticateJWT, onlySuperAdmin, getTokenInfo);
+router.post('/api-tokens/:customerId/generate',    authenticateJWT, onlySuperAdmin, generateToken);
+router.post('/api-tokens/:customerId/regenerate',  authenticateJWT, onlySuperAdmin, regenerateToken);
+router.post('/api-tokens/:customerId/enable',      authenticateJWT, onlySuperAdmin, enableToken);
+router.post('/api-tokens/:customerId/disable',     authenticateJWT, onlySuperAdmin, disableToken);
 
 router.post  ('/devices',        authenticateJWT, allRoles, createDeviceHandler);
 router.get   ('/devices',        authenticateJWT, allRoles, listDevicesHandler);
