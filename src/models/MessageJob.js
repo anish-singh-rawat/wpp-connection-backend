@@ -4,21 +4,18 @@ const mongoose = require('mongoose');
 
 const messageJobSchema = new mongoose.Schema(
   {
-    _id:         { type: String },       
+    _id:         { type: String },
     dedupKey:    { type: String, index: true },
     sessionName: { type: String, required: true, index: true },
     number:      { type: String, required: true },
     chatId:      { type: String, required: true },
-    message:     { type: String, default: null },  
-    // media fields
-    mediaData:   { type: String, default: null },   // base64 data URI
+    message:     { type: String, default: null },
+    mediaData:   { type: String, default: null }, 
     mimeType:    { type: String, default: null },
     filename:    { type: String, default: null },
-    // optional CSV personalisation fields
     name:        { type: String, default: null },
     title:       { type: String, default: null },
     city:        { type: String, default: null },
-    // job lifecycle
     status: {
       type:    String,
       enum:    ['pending', 'sending', 'sent', 'failed', 'duplicate', 'skipped'],
@@ -29,15 +26,35 @@ const messageJobSchema = new mongoose.Schema(
     error:       { type: String, default: null },
     enqueuedAt:  { type: Date, default: Date.now },
     processedAt: { type: Date, default: null },
+
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    subCustomerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
-    _id:        false,   
+    _id:        false,
     versionKey: false,
     timestamps: false,
   }
 );
 
-// Compound index for dedup lookups
 messageJobSchema.index({ dedupKey: 1, status: 1 });
+messageJobSchema.index({ customerId: 1, status: 1 });
+messageJobSchema.index({ customerId: 1, sessionName: 1 });
+messageJobSchema.index({ customerId: 1, subCustomerId: 1, status: 1 });
 
 module.exports = mongoose.model('MessageJob', messageJobSchema);

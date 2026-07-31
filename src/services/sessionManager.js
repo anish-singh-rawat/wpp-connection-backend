@@ -14,15 +14,20 @@ function resetSession(sessionName) {
 }
 
 
-function _onSessionReady(sessionName) {
+async function _onSessionReady(sessionName) {
   launching.delete(sessionName);
   if (retryTimers.has(sessionName)) {
     clearTimeout(retryTimers.get(sessionName));
     retryTimers.delete(sessionName);
   }
   try {
-    require('../controllers/webhookController').registerIncomingListener(sessionName);
-  } catch (_) {}
+    const Device = require('../models/Device');
+    const doc = await Device.findOne({ sessionName }).lean().catch(() => null);
+
+    require('../controllers/webhookController').registerIncomingListener(sessionName, doc);
+  } catch (_) {
+    require('../controllers/webhookController').registerIncomingListener(sessionName, null);
+  }
 }
 
 

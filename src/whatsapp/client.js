@@ -178,7 +178,6 @@ class WhatsAppClient {
           require('../controllers/qrController')
             .notifyStatusForSession(this.sessionName, 'retrying');
         } catch (_) {}
-        // Delegate to sessionManager for exponential backoff
         try {
           require('../services/sessionManager').restartSession(this.sessionName);
         } catch (_) {}

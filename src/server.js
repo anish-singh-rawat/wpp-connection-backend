@@ -100,15 +100,8 @@ app.use((req, _res, next) => {
 
 app.use('/', routes);
 
-app.use((_req, res) => {
-  res.status(404).json({ success: false, error: 'Route not found.' });
-});
-
-app.use((err, _req, res, _next) => {
-  logger.error(`[Server] Unhandled error: ${err.message}`);
-  const message = config.server.env === 'production' ? 'Internal server error.' : err.message;
-  res.status(err.status || 500).json({ success: false, error: message });
-});
+const { globalErrorHandler } = require('./middleware/errorHandler');
+app.use(globalErrorHandler);
 
 
 async function bootstrap() {

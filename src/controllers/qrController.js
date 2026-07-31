@@ -3,9 +3,10 @@
 const { getSession } = require('../whatsapp/client');
 const { resolveSession, listDevices } = require('../services/deviceRegistry');
 const socketManager = require('../services/socketManager');
+const { buildTenantFilter } = require('../utils/tenantHelpers');
+const logger = require('../utils/logger');
 
 const sseClients = new Map();
-
 const sessionTokenMap = new Map();
 
 function registerSessionToken(sessionName, token) {
@@ -16,6 +17,7 @@ function getClients(sessionName) {
   if (!sseClients.has(sessionName)) sseClients.set(sessionName, new Set());
   return sseClients.get(sessionName);
 }
+
 async function resolveToken(sessionName) {
   if (sessionTokenMap.has(sessionName)) {
     return sessionTokenMap.get(sessionName);
@@ -30,10 +32,13 @@ async function resolveToken(sessionName) {
     return null;
   }
 }
+
 function notifyQRUpdateForSession(sessionName, base64Qr) {
   const data = JSON.stringify({ type: 'qr', qr: base64Qr });
   for (const res of getClients(sessionName)) {
-    try { res.write(`data: ${data}\n\n`); } catch (_) {}
+    try {
+      res.write(`data: ${data}\n\n`);
+    } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
     if (!token) return;
@@ -48,7 +53,9 @@ function notifyConnectedForSession(sessionName) {
 
   const data = JSON.stringify({ type: 'connected' });
   for (const res of getClients(sessionName)) {
-    try { res.write(`data: ${data}\n\n`); } catch (_) {}
+    try {
+      res.write(`data: ${data}\n\n`);
+    } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
     if (!token) return;
@@ -61,7 +68,9 @@ function notifyConnectedForSession(sessionName) {
 function notifyStatusForSession(sessionName, status) {
   const data = JSON.stringify({ type: 'waiting', status });
   for (const res of getClients(sessionName)) {
-    try { res.write(`data: ${data}\n\n`); } catch (_) {}
+    try {
+      res.write(`data: ${data}\n\n`);
+    } catch (_) {}
   }
   resolveToken(sessionName).then((token) => {
     if (!token) return;
@@ -74,22 +83,27 @@ function notifyQRUpdate()  {}
 function notifyConnected() {}
 function notifyStatus()    {}
 
-
 async function resolveDevice(req, res, next) {
-  const token = req.params.token;
+  const { token } = req.params;
+
+  const tenantFilter = req.user ? buildTenantFilter(req) : null;
 
   let sessionName = null;
+
   for (let i = 0; i < 6; i++) {
     try {
-      sessionName = await resolveSession(token);
+      sessionName = await resolveSession(token, tenantFilter);
     } catch (_) {}
     if (sessionName) break;
     await new Promise((r) => setTimeout(r, 500));
   }
 
   if (!sessionName) {
-    return res.status(404).json({ success: false, error: 'Device not found. Invalid token.' });
+    return res
+      .status(404)
+      .json({ success: false, error: 'Device not found. Invalid token or insufficient permissions.' });
   }
+
   req.sessionName = sessionName;
   next();
 }
@@ -106,7 +120,9 @@ function qrEventStream(req, res) {
 
   const session = getSession(sessionName);
   const ping = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch (_) {}
+    try {
+      res.write(': ping\n\n');
+    } catch (_) {}
   }, 15000);
 
   getClients(sessionName).add(res);
@@ -135,20 +151,20 @@ function getQRStatus(req, res) {
   return res.json({
     token:   req.params.token,
     session: req.sessionName,
-    status:  session.status,
-    isReady: session.isReady,
-    hasQR:   !!session.latestQR,
+    status:  session?.status || 'unknown',
+    isReady: session?.isReady || false,
+    hasQR:   !!(session?.latestQR),
   });
 }
 
 function getQRImage(req, res) {
   const session = getSession(req.sessionName);
 
-  if (!session.latestQR) {
+  if (!session?.latestQR) {
     res.setHeader('Retry-After', '3');
     return res.status(202).json({
       success: false,
-      status:  session.status,
+      status:  session?.status || 'unknown',
       message: 'QR not available yet. Retry in a few seconds.',
     });
   }
@@ -168,7 +184,6 @@ function getQRImage(req, res) {
   return res.send(buf);
 }
 
-
 module.exports = {
   resolveDevice,
   qrEventStream,
@@ -180,6 +195,5 @@ module.exports = {
   notifyQRUpdate,
   notifyConnected,
   notifyStatus,
-  registerSessionToken,   
+  registerSessionToken,
 };
-
