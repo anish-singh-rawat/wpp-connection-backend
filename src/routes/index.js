@@ -63,7 +63,7 @@ const {
   listTokens,
 } = require('../controllers/apiTokenController');
 
-const { authenticateJWT, authenticateApiToken, authenticateQR } = require('../middleware/auth');
+const { authenticateJWT, authenticateApiToken, authenticateEither, authenticateQR } = require('../middleware/auth');
 const { authorize, onlySuperAdmin, superAdminOrCustomer, allRoles } = require('../middleware/authorize');
 const { customerRateLimit } = require('../middleware/rateLimiter');
 const { logApiRequest }     = require('../middleware/apiLogger');
@@ -170,7 +170,7 @@ router.get('/devices/:token/qrcode/image',  authenticateQR, resolveDevice, getQR
 
 router.post(
   '/devices/:token/send',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -179,7 +179,7 @@ router.post(
 
 router.post(
   '/devices/:token/send-media',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -189,7 +189,7 @@ router.post(
 
 router.post(
   '/devices/:token/bulk-send',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -198,7 +198,7 @@ router.post(
 
 router.post(
   '/devices/:token/bulk-send-media',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -208,7 +208,7 @@ router.post(
 
 router.post(
   '/devices/:token/bulk-send/csv',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -218,7 +218,7 @@ router.post(
 
 router.get(
   '/devices/:token/queue',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -227,7 +227,7 @@ router.get(
 
 router.get(
   '/devices/:token/queue/:jobId',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,
@@ -244,7 +244,7 @@ router.get(
 
 router.get(
   '/api/devices/:token/messages',
-  authenticateApiToken,
+  authenticateEither,
   customerRateLimit,
   logApiRequest,
   resolveDevice,

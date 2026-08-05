@@ -154,15 +154,19 @@ async function authenticateApiToken(req, res, next) {
   }
 }
 
-async function authenticate(req, res, next) {
+async function authenticateEither(req, res, next) {
   const authHeader = req.headers.authorization;
-  const hasJWT = authHeader && authHeader.startsWith('Bearer ') && !authHeader.substring(7).startsWith('wpp_');
-  
-  if (hasJWT) {
-    return authenticateJWT(req, res, next);
-  } else {
+  const xApiKey    = req.headers['x-api-key'];
+
+  const bearerValue = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  const isApiToken  = (bearerValue && bearerValue.startsWith('wpp_')) ||
+                      (xApiKey && xApiKey.startsWith('wpp_')) ||
+                      (req.query.api_key && req.query.api_key.startsWith('wpp_'));
+
+  if (isApiToken) {
     return authenticateApiToken(req, res, next);
   }
+  return authenticateJWT(req, res, next);
 }
 
 async function optionalJWT(req, res, next) {
@@ -242,7 +246,7 @@ async function authenticateQR(req, res, next) {
 module.exports = {
   authenticateJWT,
   authenticateApiToken,
-  authenticate,
-  optionalJWT,
+  authenticateEither,
   authenticateQR,
+  optionalJWT,
 };
