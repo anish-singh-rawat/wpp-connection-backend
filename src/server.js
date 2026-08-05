@@ -57,6 +57,20 @@ const corsOptions = {
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ success: false, error: 'CORS blocked.' });
+  }
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-api-key');
+  }
+  next();
+});
+
 app.use(helmet({
   crossOriginResourcePolicy: false,
   contentSecurityPolicy: {
@@ -118,8 +132,13 @@ async function bootstrap() {
       logger.info(`[Server] Listening on 0.0.0.0:${config.server.port}`);
     });
 
-    server.keepAliveTimeout = 65000;
-    server.headersTimeout = 66000;
+    // headersTimeout must exceed the longest possible request lifecycle.
+    // sendMedia to WhatsApp for a 16MB file on slow network can take ~120s.
+    // headersTimeout < that causes Express to close the socket mid-response,
+    // which strips CORS headers and the browser reports a CORS error.
+    server.headersTimeout    = 180_000; // 3 minutes
+    server.requestTimeout    = 180_000;
+    server.keepAliveTimeout  = 65_000;
 
     socketManager.init(server);
 

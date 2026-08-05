@@ -97,7 +97,7 @@ const csvUpload = multer({
 
 const mediaUpload = multer({
   storage:    multer.memoryStorage(),
-  limits:     { fileSize: 16 * 1024 * 1024 }, 
+  limits:     { fileSize: 16 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -114,6 +114,22 @@ const mediaUpload = multer({
     }
   },
 });
+
+function multerErrorHandler(err, req, res, next) {
+  if (!err) return next();
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      error: 'File too large. Maximum allowed size is 16 MB.',
+    });
+  }
+  return res.status(400).json({ success: false, error: err.message });
+}
 
 router.get('/health', (_req, res) =>
   res.json({ status: 'ok', env: config.server.env, uptime: process.uptime() })
@@ -184,6 +200,7 @@ router.post(
   logApiRequest,
   resolveDevice,
   mediaUpload.single('media'),
+  multerErrorHandler,
   sendMediaMessage
 );
 
@@ -203,6 +220,7 @@ router.post(
   logApiRequest,
   resolveDevice,
   mediaUpload.single('media'),
+  multerErrorHandler,
   bulkSendMediaMessage
 );
 
@@ -213,6 +231,7 @@ router.post(
   logApiRequest,
   resolveDevice,
   csvUpload.single('file'),
+  multerErrorHandler,
   bulkSendCsv
 );
 

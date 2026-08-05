@@ -46,11 +46,15 @@ const errors = {
 
 
 function errorHandler(err, req, res, next) {
-
   if (res.headersSent) {
     return next(err);
   }
 
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   const statusCode = err.statusCode || 500;
   const isOperational = err.isOperational || false;
