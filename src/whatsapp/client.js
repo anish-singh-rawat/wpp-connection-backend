@@ -8,7 +8,6 @@ const {
   makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  getContentType,
   fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
 
@@ -29,7 +28,6 @@ class WhatsAppClient {
     this.sessionName     = sessionName;
     this.sock            = null;
     this.isReady         = false;
-    this.webhookHandlers = [];
     this.latestQR        = null;
     this.status          = 'initialising';
     this.destroyed       = false;
@@ -191,40 +189,6 @@ class WhatsAppClient {
       }
     });
 
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
-      if (config.whatsapp.disableInbox) return;
-
-      for (const msg of messages) {
-        if (msg.key.fromMe) continue;
-        if (msg.key.remoteJid === 'status@broadcast') continue;
-
-        try {
-          const contentType = getContentType(msg.message || {});
-          const bodyText    = this._extractBody(msg, contentType);
-          const from        = (msg.key.remoteJid || '')
-            .replace('@s.whatsapp.net', '@c.us');
-
-          const normalised = {
-            from,
-            body:      bodyText,
-            type:      contentType || 'unknown',
-            timestamp: msg.messageTimestamp
-              ? Number(msg.messageTimestamp)
-              : Math.floor(Date.now() / 1000),
-          };
-
-          logger.info(`[WhatsApp:${this.sessionName}] Incoming from ${from}`);
-          for (const handler of this.webhookHandlers) {
-            try { await handler(normalised); } catch (e) {
-              logger.error(`[WhatsApp:${this.sessionName}] Handler error: ${e.message}`);
-            }
-          }
-        } catch (err) {
-          logger.error(`[WhatsApp:${this.sessionName}] Message processing error: ${err.message}`);
-        }
-      }
-    });
   }
 
   async sendText(chatId, message) {
@@ -250,9 +214,7 @@ class WhatsAppClient {
     }
   }
 
-  onMessage(handler) {
-    this.webhookHandlers.push(handler);
-  }
+  onMessage(handler) {}
 
   async close() {
     this.destroyed = true;
@@ -287,16 +249,6 @@ class WhatsAppClient {
       return { audio: buffer, mimetype: mimeType, ptt: false };
     }
     return { document: buffer, mimetype: mimeType, fileName: filename, caption };
-  }
-
-  _extractBody(msg, contentType) {
-    if (!msg.message) return '';
-    const content = msg.message[contentType];
-    if (typeof content === 'string') return content;
-    if (content?.text)              return content.text;
-    if (content?.caption)           return content.caption;
-    if (msg.message.conversation)   return msg.message.conversation;
-    return '';
   }
 
   _clearAuth() {

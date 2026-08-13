@@ -30,8 +30,6 @@ const {
   getQueueJob,
 } = require('../controllers/messageController');
 
-const { getIncomingMessages } = require('../controllers/webhookController');
-
 const {
   createCustomer,
   listCustomers,
@@ -253,22 +251,6 @@ router.get(
   getQueueJob
 );
 
-
-router.get(
-  '/devices/:token/messages',
-  authenticateJWT,
-  resolveDevice,
-  getIncomingMessages
-);
-
-router.get(
-  '/api/devices/:token/messages',
-  authenticateEither,
-  customerRateLimit,
-  logApiRequest,
-  resolveDevice,
-  getIncomingMessages
-);
 
 router.use(notFoundHandler);
 

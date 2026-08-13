@@ -20,14 +20,6 @@ async function _onSessionReady(sessionName) {
     clearTimeout(retryTimers.get(sessionName));
     retryTimers.delete(sessionName);
   }
-  try {
-    const Device = require('../models/Device');
-    const doc = await Device.findOne({ sessionName }).lean().catch(() => null);
-
-    require('../controllers/webhookController').registerIncomingListener(sessionName, doc);
-  } catch (_) {
-    require('../controllers/webhookController').registerIncomingListener(sessionName, null);
-  }
 }
 
 
