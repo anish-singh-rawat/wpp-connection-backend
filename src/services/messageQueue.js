@@ -15,7 +15,7 @@ class MessageQueue {
     this._sessionProcessing = new Map();
   }
 
-  async enqueue(numbers, message, sessionName) {
+  async enqueue(numbers, message, sessionName, ownership = {}) {
     const session = sessionName || config.whatsapp.sessionName;
     const results = [];
 
@@ -31,14 +31,17 @@ class MessageQueue {
 
       const jobId = uuidv4();
       await MessageJob.create({
-        _id:         jobId,
+        _id:           jobId,
         dedupKey,
-        sessionName: session,
+        sessionName:   session,
         number,
         chatId,
         message,
-        status:      'pending',
-        enqueuedAt:  new Date(),
+        status:        'pending',
+        enqueuedAt:    new Date(),
+        customerId:    ownership.customerId    || null,
+        subCustomerId: ownership.subCustomerId || null,
+        createdBy:     ownership.createdBy     || null,
       });
 
       this._pendingIds.push(jobId);
@@ -47,12 +50,12 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.filter(r => r.status === 'queued').length });
     }
     return results;
   }
 
-  async enqueueRecipients(recipients, fallbackMessage, sessionName) {
+  async enqueueRecipients(recipients, fallbackMessage, sessionName, ownership = {}) {
     const session = sessionName || config.whatsapp.sessionName;
     const results = [];
 
@@ -77,17 +80,20 @@ class MessageQueue {
 
       const jobId = uuidv4();
       await MessageJob.create({
-        _id:         jobId,
+        _id:           jobId,
         dedupKey,
-        sessionName: session,
+        sessionName:   session,
         number,
         chatId,
         message,
-        name:        recipient.name  || null,
-        title:       recipient.title || null,
-        city:        recipient.city  || null,
-        status:      'pending',
-        enqueuedAt:  new Date(),
+        name:          recipient.name  || null,
+        title:         recipient.title || null,
+        city:          recipient.city  || null,
+        status:        'pending',
+        enqueuedAt:    new Date(),
+        customerId:    ownership.customerId    || null,
+        subCustomerId: ownership.subCustomerId || null,
+        createdBy:     ownership.createdBy     || null,
       });
 
       this._pendingIds.push(jobId);
@@ -96,12 +102,12 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.some((r) => r.status === 'queued')) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.filter(r => r.status === 'queued').length });
     }
     return results;
   }
 
-  async enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName) {
+  async enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName, ownership = {}) {
     const session  = sessionName || config.whatsapp.sessionName;
     const mediaData = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
     const results  = [];
@@ -112,17 +118,20 @@ class MessageQueue {
 
       const jobId = uuidv4();
       await MessageJob.create({
-        _id:         jobId,
+        _id:           jobId,
         dedupKey,
-        sessionName: session,
+        sessionName:   session,
         number,
         chatId,
-        message:     caption || '',
+        message:       caption || '',
         mediaData,
         mimeType,
         filename,
-        status:      'pending',
-        enqueuedAt:  new Date(),
+        status:        'pending',
+        enqueuedAt:    new Date(),
+        customerId:    ownership.customerId    || null,
+        subCustomerId: ownership.subCustomerId || null,
+        createdBy:     ownership.createdBy     || null,
       });
 
       this._pendingIds.push(jobId);
@@ -131,15 +140,16 @@ class MessageQueue {
 
     this._processSession(session);
     if (results.length > 0) {
-      socketManager.emitQueueUpdate(session, await this.getJobs('all', session));
+      socketManager.emitQueueUpdate(session, { queued: results.length });
     }
     return results;
   }
 
-  async getJobs(filter = 'all', sessionName = null) {
+  async getJobs(filter = 'all', sessionName = null, tenantFilter = null) {
     const query = {};
     if (sessionName) query.sessionName = sessionName;
     if (filter !== 'all') query.status = filter;
+    if (tenantFilter) Object.assign(query, tenantFilter);
 
     const jobs = await MessageJob.find(query).sort({ enqueuedAt: -1 }).lean();
     return jobs.map((j) => this._toPlain(j));

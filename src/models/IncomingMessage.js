@@ -10,6 +10,23 @@ const incomingMessageSchema = new mongoose.Schema(
     type:        { type: String, default: 'chat' },
     timestamp:   { type: Date },
     receivedAt:  { type: Date, default: Date.now },
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    subCustomerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    deviceToken: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   {
     versionKey: false,
@@ -17,7 +34,11 @@ const incomingMessageSchema = new mongoose.Schema(
   }
 );
 
-// TTL index: auto-delete messages older than 30 days (2592000 seconds)
-// incomingMessageSchema.index({ receivedAt: 1 }, { expireAfterSeconds: 2592000 });
+incomingMessageSchema.index({ customerId: 1, receivedAt: -1 });
+incomingMessageSchema.index({ customerId: 1, sessionName: 1, receivedAt: -1 });
+incomingMessageSchema.index({ customerId: 1, subCustomerId: 1, receivedAt: -1 });
+
+// Optional TTL: auto-delete messages older than 90 days
+incomingMessageSchema.index({ receivedAt: 1 }, { expireAfterSeconds: 7776000 });
 
 module.exports = mongoose.model('IncomingMessage', incomingMessageSchema);

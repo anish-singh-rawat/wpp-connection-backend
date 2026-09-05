@@ -27,19 +27,19 @@ async function sendSingleMedia(number, fileBuffer, mimeType, filename, caption, 
   return { number, status: 'sent' };
 }
 
-async function enqueueBulk(numbers, message, sessionName) {
+async function enqueueBulk(numbers, message, sessionName, ownership = {}) {
   logger.info(`[Messaging] Enqueueing ${numbers.length} messages`);
-  return queue.enqueue(numbers, message, sessionName);
+  return queue.enqueue(numbers, message, sessionName, ownership);
 }
 
-async function enqueueBulkRecipients(recipients, fallbackMessage, sessionName) {
+async function enqueueBulkRecipients(recipients, fallbackMessage, sessionName, ownership = {}) {
   logger.info(`[Messaging] Enqueueing ${recipients.length} personalised messages`);
-  return queue.enqueueRecipients(recipients, fallbackMessage, sessionName);
+  return queue.enqueueRecipients(recipients, fallbackMessage, sessionName, ownership);
 }
 
-async function enqueueBulkMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName) {
+async function enqueueBulkMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName, ownership = {}) {
   logger.info(`[Messaging] Enqueueing ${numbers.length} media messages`);
-  return queue.enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName);
+  return queue.enqueueMedia(numbers, fileBuffer, mimeType, filename, caption, sessionName, ownership);
 }
 
 async function getQueueStatus(filter, sessionName) {

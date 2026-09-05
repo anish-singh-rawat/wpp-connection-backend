@@ -57,6 +57,20 @@ const corsOptions = {
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ success: false, error: 'CORS blocked.' });
+  }
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-api-key');
+  }
+  next();
+});
+
 app.use(helmet({
   crossOriginResourcePolicy: false,
   contentSecurityPolicy: {
@@ -100,15 +114,8 @@ app.use((req, _res, next) => {
 
 app.use('/', routes);
 
-app.use((_req, res) => {
-  res.status(404).json({ success: false, error: 'Route not found.' });
-});
-
-app.use((err, _req, res, _next) => {
-  logger.error(`[Server] Unhandled error: ${err.message}`);
-  const message = config.server.env === 'production' ? 'Internal server error.' : err.message;
-  res.status(err.status || 500).json({ success: false, error: message });
-});
+const { globalErrorHandler } = require('./middleware/errorHandler');
+app.use(globalErrorHandler);
 
 
 async function bootstrap() {
@@ -125,8 +132,13 @@ async function bootstrap() {
       logger.info(`[Server] Listening on 0.0.0.0:${config.server.port}`);
     });
 
-    server.keepAliveTimeout = 65000;
-    server.headersTimeout = 66000;
+    // headersTimeout must exceed the longest possible request lifecycle.
+    // sendMedia to WhatsApp for a 16MB file on slow network can take ~120s.
+    // headersTimeout < that causes Express to close the socket mid-response,
+    // which strips CORS headers and the browser reports a CORS error.
+    server.headersTimeout    = 180_000; // 3 minutes
+    server.requestTimeout    = 180_000;
+    server.keepAliveTimeout  = 65_000;
 
     socketManager.init(server);
 
