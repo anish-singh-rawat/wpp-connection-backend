@@ -9,6 +9,7 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
 } = require('@whiskeysockets/baileys');
 
 const config = require('../config');
@@ -36,13 +37,85 @@ class WhatsAppClient {
     this._saveCreds  = null;
     this._version    = null;
     this._qrExpireTimer = null;
+    this._qrListeners = new Set();
 
     this.authDir = path.resolve(config.whatsapp.sessionPath, this.sessionName);
+  }
+
+  // Check if there is a valid registered session on disk
+  _hasValidSession() {
+    try {
+      const credsPath = path.join(this.authDir, 'creds.json');
+      if (!fs.existsSync(credsPath)) return false;
+      const data = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+      return data.registered === true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Fetch WA version with a 2000ms timeout so we never block QR on a slow network
+  async _ensureVersion() {
+    if (!this._version) {
+      try {
+        const fetchPromise    = fetchLatestBaileysVersion();
+        const timeoutPromise  = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Version fetch timeout')), 2000)
+        );
+        const { version } = await Promise.race([fetchPromise, timeoutPromise]);
+        this._version = version || [2, 3000, 1043857760];
+        logger.info(`[WhatsApp:${this.sessionName}] WA version: ${this._version.join('.')}`);
+      } catch (_) {
+        this._version = [2, 3000, 1043857760];
+        logger.warn(`[WhatsApp:${this.sessionName}] Using fallback WA version.`);
+      }
+    }
+    return this._version;
+  }
+
+  // Wait up to timeoutMs for a QR to appear (or for the session to become connected)
+  _waitForQR(timeoutMs = 5000) {
+    if (this.latestQR) return Promise.resolve(this.latestQR);
+    if (this.isReady || this.status === 'connected') return Promise.resolve(null);
+
+    return new Promise((resolve) => {
+      let cleanup;
+      const timer = setTimeout(() => {
+        if (cleanup) cleanup();
+        resolve(this.latestQR);
+      }, timeoutMs);
+
+      const listener = (event, qr) => {
+        if (event === 'qr' || qr) {
+          clearTimeout(timer);
+          if (cleanup) cleanup();
+          resolve(qr || this.latestQR);
+        } else if (event === 'connected') {
+          clearTimeout(timer);
+          if (cleanup) cleanup();
+          resolve(null);
+        }
+      };
+      this._qrListeners.add(listener);
+      cleanup = () => this._qrListeners.delete(listener);
+    });
+  }
+
+  _notifyQRListeners(event, qr) {
+    for (const listener of this._qrListeners) {
+      try { listener(event, qr); } catch (_) {}
+    }
   }
 
   async init() {
     logger.info(`[WhatsApp:${this.sessionName}] Initialising (Baileys)...`);
     this.status = 'launching';
+
+    // CRITICAL: If there is no valid registered session, clear any stale creds
+    // so Baileys emits QR immediately instead of hanging for 30+ seconds
+    if (!this._hasValidSession()) {
+      this._clearAuth();
+    }
 
     fs.mkdirSync(this.authDir, { recursive: true });
 
@@ -50,18 +123,12 @@ class WhatsAppClient {
     this._state     = state;
     this._saveCreds = saveCreds;
 
-    if (!this._version) {
-      try {
-        const { version } = await fetchLatestBaileysVersion();
-        this._version = version;
-        logger.info(`[WhatsApp:${this.sessionName}] WA version: ${version.join('.')}`);
-      } catch (_) {
-        this._version = [2, 3000, 1015901307];
-        logger.warn(`[WhatsApp:${this.sessionName}] Using fallback WA version.`);
-      }
-    }
+    await this._ensureVersion();
 
     this._openSocket();
+
+    // Wait up to 5 seconds for the QR so callers get it immediately
+    await this._waitForQR(5000);
   }
 
   _openSocket() {
@@ -78,7 +145,10 @@ class WhatsAppClient {
     const sock = makeWASocket({
       version:                      this._version,
       logger:                       baileysLogger,
-      auth:                         this._state,
+      auth: {
+        creds: this._state.creds,
+        keys:  makeCacheableSignalKeyStore(this._state.keys, baileysLogger),
+      },
       browser:                      ['WhatsApp', 'Chrome', '3.0'],
       printQRInTerminal:            false,
       keepAliveIntervalMs:          25_000,
@@ -88,6 +158,7 @@ class WhatsAppClient {
       syncFullHistory:              false,
       fireInitQueries:              true,
       maxMsgRetryCount:             3,
+      emitOwnEvents:                true,
     });
 
     this.sock = sock;
@@ -110,6 +181,8 @@ class WhatsAppClient {
             }
           }, 60_000);
           logger.info(`[WhatsApp:${this.sessionName}] QR ready — scan now`);
+          // Notify _waitForQR listeners immediately so init() returns with QR
+          this._notifyQRListeners('qr', base64Png);
           try {
             require('../controllers/qrController')
               .notifyQRUpdateForSession(this.sessionName, base64Png);
@@ -133,6 +206,8 @@ class WhatsAppClient {
         this.latestQR = null;
         this.status   = 'connected';
         logger.info(`[WhatsApp:${this.sessionName}] Connected ✓`);
+        // Notify _waitForQR listeners that we are connected (no QR needed)
+        this._notifyQRListeners('connected', null);
         try {
           require('../controllers/qrController')
             .notifyConnectedForSession(this.sessionName);
